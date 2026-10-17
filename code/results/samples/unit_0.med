@@ -1,0 +1,34 @@
+input patient_weight: lb range(2, 250);
+input temperature: degC range(32, 44);
+input hr: bpm range(20, 250);
+
+const MAX_DOSE: mg = 800 mg;
+const limit: mg = 2 * 200 mg;
+
+func weight_dose(mass: kg, r: mg/kg) -> mg {
+    let dose: mg = r * mass;
+    if (dose > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return dose;
+}
+
+let dose: mg = weight_dose(patient_weight, 12.5 mg/kg);
+print(dose);
+let margin: mg = limit - 100 mg;
+print(margin);
+if (temperature > 38.0 degC) {
+    print("ALERT fever");
+}
+if (hr > 100 bpm) {
+    print("ALERT tachycardia");
+}
+let score = 0;
+let i = 0;
+while (i < 5) {
+    score = score + i * 2;
+    i = i + 1;
+}
+if (score > 5) {
+    print("ALERT review");
+}

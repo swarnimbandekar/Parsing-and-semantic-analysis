@@ -1,0 +1,19 @@
+// bedside monitor post-processing
+input temp: degC range(28, 41);
+input sbp: mmHg range(30, 260);
+input fluid_volume: ml range(50, 3000);
+input dur: hour range(0, 24);
+
+if (dur > 0 hour) {
+    let flow: ml/hour = fluid_volume / dur;
+    print(flow);
+}
+if (sbp < 100 mmHg) {
+    print("ALERT hypotension");
+}
+if (sbp > 140 mmHg) {
+    print("ALERT hypertension");
+}
+if (temp > 380 degC) {
+    print("ALERT fever");
+}

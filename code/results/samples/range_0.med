@@ -1,0 +1,21 @@
+// triage rules for the admission unit
+input body_temp: degC range(32, 41);
+input heart_rate: bpm range(30, 250);
+input bp_sys: mmHg range(260, 50);
+input record_id: string phi;
+
+print("record processed");
+export(anonymize(record_id));
+if (body_temp > 38.5 degC) {
+    print("ALERT fever");
+}
+if (body_temp < 35.5 degC) {
+    print("ALERT hypothermia");
+}
+let shock_index = heart_rate / bp_sys;
+if (shock_index > 0.9 bpm/mmHg) {
+    print("ALERT shock");
+}
+if (heart_rate > 250 bpm) {
+    print("ALERT tachycardia");
+}

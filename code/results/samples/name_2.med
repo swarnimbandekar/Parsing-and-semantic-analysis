@@ -1,0 +1,52 @@
+// nightly batch check
+input patient_weight: kg range(3, 400);
+input ht: metre range(0.4, 2.4);
+input body_temp: degC range(30, 42);
+input hr: bpm range(20, 280);
+input sbp: mmHg range(40, 260);
+input fluid_volume: ml range(100, 3000);
+input infusion_time: hour range(0.5, 12);
+
+const MAX_DOSE: mg = 500 mg;
+
+func calc_dose(w: kg, rate: mg/kg) -> mg {
+    let d: mg = rate * w;
+    if (d > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return d;
+}
+
+func bmi_of(w: kg, h: metre) -> kg/metre^2 {
+    return w / (h * h);
+}
+
+let shock_index = hr / sbp;
+if (shock_index > 1.2 bpm/mmHg) {
+    print("ALERT shock");
+}
+let dose_mg: mg = calc_ose(patient_weight, 12.5 mg/kg);
+print(dose_mg);
+if (dose_mg > 300 mg) {
+    print("ALERT high_dose");
+}
+if (hr > 120 bpm) {
+    print("ALERT tachycardia");
+}
+let bmi = bmi_of(patient_weight, ht);
+if (bmi > 40 kg/metre^2) {
+    print("ALERT obesity");
+}
+if (hr > 100 bpm && body_temp > 38.0 degC) {
+    print("ALERT sepsis_risk");
+}
+if (sbp < 90 mmHg) {
+    print("ALERT hypotension");
+}
+if (sbp > 160 mmHg) {
+    print("ALERT hypertension");
+}
+let rate: ml/hour = fluid_volume / infusion_time;
+if (rate > 250 ml/hour) {
+    print("ALERT high_rate");
+}

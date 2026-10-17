@@ -1,0 +1,32 @@
+// bedside monitor post-processing
+input wt: kg range(0.5, 200);
+input ht: metre range(0.3, 2.2);
+input body_temp: degC range(32, 41);
+input pulse: bpm range(10, 280);
+input volume: ml range(100, 3000);
+input dur: hour range(0, 24);
+
+func calc_bmi(w: kg, h: metre) -> kg/metre^2 {
+    return w / (h * h);
+}
+
+if (pulse > 130 bpm) {
+    print("ALERT tachycardia");
+}
+if (pulse < 55 bpm) {
+    print("ALERT bradycardia");
+}
+let bmi = calc_bmi(wt, ht);
+if (bmi > 40 kg/metre^2) {
+    print("ALERT obesity");
+}
+if (pulse > 110 bpm && body_temp > 37.8 degC) {
+    print("ALERT sepsis_risk");
+}
+let flag2: bool = false;
+flag2 = 2;
+print(flag2);
+if (dur > 0 hour) {
+    let flow: ml/hour = volume / dur;
+    print(flow);
+}

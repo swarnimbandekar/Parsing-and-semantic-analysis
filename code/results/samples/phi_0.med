@@ -1,0 +1,15 @@
+// triage rules for the admission unit
+input wt_lb: lb range(5, 600);
+input heart_rate: bpm range(30, 220);
+input sbp: mmHg range(30, 260);
+input full_name: string phi;
+
+let weight_kg: kg = lb_to_kg(wt_lb);
+print(weight_kg);
+let shock_index = heart_rate / sbp;
+if (shock_index > 1.2 bpm/mmHg) {
+    print("ALERT shock");
+}
+print("patient: " + full_name);
+print("record processed");
+export(anonymize(full_name));

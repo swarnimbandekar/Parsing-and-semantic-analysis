@@ -1,0 +1,16 @@
+// medication safety checks
+input temp: degC? range(30, 44);
+input glucose: mg/ml? range(0, 20);
+input record_id: string phi;
+
+if (temp > 38.5 degC) {
+    print("ALERT fever");
+}
+if (temp < 35.5 degC) {
+    print("ALERT hypothermia");
+}
+print("record processed");
+export(anonymize(record_id));
+if (present(glucose) && glucose > 2.5 mg/ml) {
+    print("ALERT hyperglycemia");
+}

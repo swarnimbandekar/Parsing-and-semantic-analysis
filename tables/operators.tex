@@ -1,0 +1,62 @@
+\begin{longtable}{llp{5.2cm}rrr}
+\caption{Fault-injection operators and yield during corpus construction.}\label{tab:ops}\\
+\toprule
+\textbf{Family} & \textbf{Operator} & \textbf{Fault injected} & \textbf{Tried} & \textbf{Kept} & \textbf{\%}\\
+\midrule
+\endhead
+lexical & \texttt{lex\_illegal} & insert an illegal character & 332 & 332 & 100\\
+ & \texttt{lex\_number} & malform a numeric literal & 311 & 307 & 99\\
+ & \texttt{lex\_string} & drop a closing quote & 362 & 361 & 100\\
+\midrule
+syntax & \texttt{syn\_semicolon} & delete a semicolon & 170 & 170 & 100\\
+ & \texttt{syn\_paren} & delete a closing parenthesis & 173 & 173 & 100\\
+ & \texttt{syn\_close\_brace} & delete a closing brace & 175 & 175 & 100\\
+ & \texttt{syn\_open\_brace} & delete an opening brace & 139 & 139 & 100\\
+ & \texttt{syn\_operand} & delete a comparison operand & 167 & 167 & 100\\
+ & \texttt{syn\_keyword} & misspell a keyword & 176 & 176 & 100\\
+\midrule
+name & \texttt{name\_typo} & misspell a variable use & 208 & 208 & 100\\
+ & \texttt{name\_delete\_decl} & delete a declaration & 182 & 182 & 100\\
+ & \texttt{name\_redecl} & duplicate a declaration & 156 & 151 & 97\\
+ & \texttt{name\_uninit} & remove an initialiser & 185 & 142 & 77\\
+ & \texttt{name\_func} & misspell a function call & 173 & 128 & 74\\
+ & \texttt{name\_assign\_input} & assign to an input & 189 & 189 & 100\\
+\midrule
+type & \texttt{type\_string\_assign} & assign a string/bool to a number & 194 & 150 & 77\\
+ & \texttt{type\_bool\_assign} & assign a number to a bool & 189 & 189 & 100\\
+ & \texttt{type\_arity} & change an argument count & 202 & 148 & 73\\
+ & \texttt{type\_cond} & use a number as a condition & 170 & 170 & 100\\
+ & \texttt{type\_return} & return the wrong type & 210 & 162 & 77\\
+ & \texttt{type\_float\_int} & assign a float to an int & 181 & 181 & 100\\
+\midrule
+unit & \texttt{unit\_swap\_literal} & swap the unit of a literal & 225 & 212 & 94\\
+ & \texttt{unit\_drop} & drop the unit of a literal & 218 & 208 & 95\\
+ & \texttt{unit\_decl} & change a declared input unit & 210 & 206 & 98\\
+ & \texttt{unit\_rate} & pass a wrong dose-rate unit & 195 & 86 & 44\\
+ & \texttt{unit\_return} & return a wrong unit & 231 & 74 & 32\\
+ & \texttt{unit\_add} & add quantities of different units & 215 & 214 & 100\\
+\midrule
+range & \texttt{range\_literal} & implausible threshold literal & 295 & 267 & 91\\
+ & \texttt{range\_threshold} & threshold outside declared range & 321 & 273 & 85\\
+ & \texttt{range\_decl} & invert a declared range & 323 & 323 & 100\\
+ & \texttt{range\_const} & implausible dose constant & 307 & 137 & 45\\
+\midrule
+phi & \texttt{phi\_direct} & print a PHI input & 202 & 202 & 100\\
+ & \texttt{phi\_alias} & export an alias of PHI & 219 & 219 & 100\\
+ & \texttt{phi\_concat} & concatenate PHI into output & 222 & 222 & 100\\
+ & \texttt{phi\_removeanon} & remove an anonymize() call & 219 & 116 & 53\\
+ & \texttt{phi\_func} & leak PHI through a function & 241 & 241 & 100\\
+\midrule
+missing & \texttt{miss\_unguard} & remove a presence guard & 442 & 192 & 43\\
+ & \texttt{miss\_new\_use} & use an optional value unguarded & 402 & 402 & 100\\
+ & \texttt{miss\_make\_optional} & make a required input optional & 410 & 406 & 99\\
+\midrule
+logic & \texttt{logic\_div\_zero} & divide by constant zero & 174 & 174 & 100\\
+ & \texttt{logic\_range\_zero} & divisor range includes zero & 193 & 101 & 52\\
+ & \texttt{logic\_missing\_return} & delete a return & 166 & 109 & 66\\
+ & \texttt{logic\_unreachable} & code after return & 160 & 112 & 70\\
+ & \texttt{logic\_inverted} & invert a clinical comparison & 154 & 148 & 96\\
+ & \texttt{logic\_wrong\_message} & mismatch alert text and rule & 165 & 163 & 99\\
+ & \texttt{logic\_constcond} & constant if-condition & 193 & 193 & 100\\
+\bottomrule
+\end{longtable}

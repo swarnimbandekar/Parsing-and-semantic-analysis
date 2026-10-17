@@ -1,0 +1,15 @@
+// nightly batch check
+input hr: bpm range(30, 220);
+input bp_sys: mmHg range(30, 260);
+
+let weight_kg: kg = lb_to_kg(wt_lb);
+print(weight_kg);
+if (bp_sys < 100 mmHg) {
+    print("ALERT hypotension");
+}
+if (bp_sys > 160 mmHg) {
+    print("ALERT hypertension");
+}
+if (hr > 130 bpm) {
+    print("ALERT tachycardia");
+}

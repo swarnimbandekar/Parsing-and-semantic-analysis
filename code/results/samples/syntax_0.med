@@ -1,0 +1,29 @@
+input patient_weight: kg range(1, 400);
+input heart_rate: bpm range(10, 250);
+input bp_sys: mmHg range(40, 300);
+input mrn: string phi;
+
+const MAX_DOSE: mg = 800 mg;
+
+func dose_for(w: kg, rate: mg/kg) -> mg {
+    let d: mg = rate * w;
+    if (d > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return d;
+}
+
+export(mrn);
+if (bp_sys < 90 mmHg) {
+    print("ALERT hypotension");
+if (bp_sys > 160 mmHg) {
+    print("ALERT hypertension");
+}
+if (heart_rate > 110 bpm) {
+    print("ALERT tachycardia");
+}
+if (heart_rate < 50 bpm) {
+    print("ALERT bradycardia");
+}
+let rx: mg = dose_for(patient_weight, 10 mg/kg);
+print(rx);

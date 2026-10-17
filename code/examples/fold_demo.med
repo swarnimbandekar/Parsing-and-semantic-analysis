@@ -1,0 +1,12 @@
+// Constant arithmetic, a repeated subexpression and a dead branch
+input weight: kg range(2, 300);
+
+const LIMIT: mg = 2 * 400 mg;
+let margin: mg = LIMIT - 50 mg;
+let per_kg: mg/kg = 12 mg/kg;
+let a: mg = per_kg * weight;
+let b: mg = per_kg * weight;
+if (1 > 2) {
+    print("never printed");
+}
+print(a + b + margin);

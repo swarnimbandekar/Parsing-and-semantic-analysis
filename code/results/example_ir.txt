@@ -1,0 +1,115 @@
+=== unoptimised ===
+func dose_for(w@1, rate@2):
+    t1 = rate@2 * w@1
+    d@3 = t1
+    t2 = d@3 > MAX_DOSE
+    ifFalse t2 goto L1
+    return MAX_DOSE
+L1:
+    return d@3
+    return
+func bmi(w@1, h@2):
+    t1 = h@2 * h@2
+    t2 = w@1 / t1
+    return t2
+    return
+main:
+    MAX_DOSE = 1000.0
+    param weight
+    param 15.0
+    t1 = call dose_for, 2
+    dose@1 = t1
+    param weight
+    param height
+    t2 = call bmi, 2
+    index@2 = t2
+    fever@3 = False
+    t3 = temp > 38.0
+    ifFalse t3 goto L1
+    fever@3 = True
+    param 'fever alert'
+    t4 = call print, 1
+L1:
+    t6 = hr > 100.0
+    t5 = t6
+    ifFalse t5 goto L5
+    t5 = fever@3
+L5:
+    ifFalse t5 goto L3
+    param 'sepsis screen'
+    t7 = call print, 1
+L3:
+    param lactate
+    t8 = call present, 1
+    ifFalse t8 goto L6
+    t9 = lactate > 200.0
+    ifFalse t9 goto L8
+    param 'high lactate'
+    t10 = call print, 1
+L8:
+L6:
+    param patient_name
+    t11 = call anonymize, 1
+    param t11
+    t12 = call export, 1
+    param dose@1
+    t13 = call print, 1
+    param index@2
+    t14 = call print, 1
+
+=== optimised ===
+func dose_for(w@1, rate@2):
+    t1 = rate@2 * w@1
+    d@3 = t1
+    t2 = t1 > MAX_DOSE
+    ifFalse t2 goto L1
+    return MAX_DOSE
+L1:
+    return d@3
+func bmi(w@1, h@2):
+    t1 = h@2 * h@2
+    t2 = w@1 / t1
+    return t2
+main:
+    MAX_DOSE = 1000.0
+    param weight
+    param 15.0
+    t1 = call dose_for, 2
+    dose@1 = t1
+    param weight
+    param height
+    t2 = call bmi, 2
+    index@2 = t2
+    fever@3 = False
+    t3 = temp > 38.0
+    ifFalse t3 goto L1
+    fever@3 = True
+    param 'fever alert'
+    t4 = call print, 1
+L1:
+    t6 = hr > 100.0
+    t5 = t6
+    ifFalse t6 goto L5
+    t5 = fever@3
+L5:
+    ifFalse t5 goto L3
+    param 'sepsis screen'
+    t7 = call print, 1
+L3:
+    param lactate
+    t8 = call present, 1
+    ifFalse t8 goto L6
+    t9 = lactate > 200.0
+    ifFalse t9 goto L8
+    param 'high lactate'
+    t10 = call print, 1
+L8:
+L6:
+    param patient_name
+    t11 = call anonymize, 1
+    param t11
+    t12 = call export, 1
+    param dose@1
+    t13 = call print, 1
+    param index@2
+    t14 = call print, 1

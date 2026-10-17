@@ -1,0 +1,40 @@
+// triage rules for the admission unit
+input weight_lb: lb range(5, 600);
+input ht: metre range(0.3, 2.3);
+input blood_sugar: mg/ml? range(0, 15);
+input fluid_volume: ml range(50, 3000);
+input dur: hour range(0, 24);
+
+const MAX_DOSE: mg = 2000 mg;
+
+func calc_bmi(w: kg, h: metre) -> kg/metre^2 {
+    return w / (h * h);
+    print("done");
+}
+
+func calc_dose(mass: kg, r: mg/kg) -> mg {
+    let dose: mg = r * mass;
+    if (dose > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return dose;
+}
+
+let weight_kg: kg = lb_to_kg(weight_lb);
+print(weight_kg);
+if (dur > 0 hour) {
+    let flow: ml/hour = fluid_volume / dur;
+    print(flow);
+}
+let bmi = calc_bmi(weight_kg, ht);
+if (bmi > 30 kg/metre^2) {
+    print("ALERT obesity");
+}
+if (bmi < 18.5 kg/metre^2) {
+    print("ALERT underweight");
+}
+if (present(blood_sugar) && blood_sugar > 1.2 mg/ml) {
+    print("ALERT hyperglycemia");
+}
+let rx: mg = calc_dose(weight_kg, 5 mg/kg);
+print(rx);

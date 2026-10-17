@@ -1,0 +1,15 @@
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Fault family} & \textbf{Isolation Forest} & \textbf{One-class SVM} & \textbf{GAN discriminator (BCE)} & \textbf{GAN critic (WGAN-GP)} & \textbf{Compiler error flag}\\
+\midrule
+lexical & 0.471 & 0.905 & 1.000 & 0.388 & 1.000\\
+syntax & 0.465 & 0.901 & 1.000 & 0.310 & 1.000\\
+name & 0.475 & 0.806 & 1.000 & 0.381 & 1.000\\
+type & 0.498 & 0.839 & 1.000 & 0.392 & 1.000\\
+unit & 0.454 & 0.834 & 1.000 & 0.360 & 1.000\\
+range & 0.451 & 0.867 & 1.000 & 0.433 & 1.000\\
+phi & 0.498 & 0.865 & 1.000 & 0.265 & 1.000\\
+missing & 0.495 & 0.885 & 1.000 & 0.325 & 1.000\\
+logic & 0.452 & 0.715 & 0.981 & 0.487 & 0.843\\
+all faults & 0.473 & 0.846 & 0.998 & 0.371 & 0.982\\\bottomrule
+\end{tabular}

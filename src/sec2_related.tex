@@ -1,0 +1,118 @@
+% ============================================================
+% RELATED WORK
+% ============================================================
+\section{Related Work}
+
+The project touches four bodies of work: classical compiler front ends, static analyses for domain-specific
+properties such as units and information flow, machine learning for program defects, and generative models and
+resampling for imbalanced data. This section summarises each and then states where our work sits.
+
+\subsection{Classical Compiler Front Ends}
+
+The standard treatment of lexical analysis, parsing and semantic analysis is that of Aho et
+al.~\cite{aho2006}; Cooper and Torczon~\cite{cooper2007} and Appel~\cite{appel1998} cover the same ground with
+more attention to implementation. Two ideas from that literature are used directly in this project. The first is
+\emph{error recovery}. A compiler that stops at the first syntax error is unpleasant to use, so parsers
+resynchronise: they either skip tokens until a safe point (panic mode) or repair the input locally by inserting
+or deleting a token. Burke and Fisher~\cite{burke1987} give a systematic method for LR and LL parsers, and Grune
+and Jacobs~\cite{grune2008} survey the alternatives. Our recursive-descent parser combines both: a missing
+semicolon or parenthesis is reported and treated as if it had been present, and any other malformed construct is
+skipped up to the next statement boundary. The second idea is \emph{phase gating}: later phases are only run on
+an input that earlier phases accepted, because a semantic analysis of a tree built from broken syntax produces
+noise. We follow this convention, which, as Section~5 shows, has a measurable effect on what the compiler can
+tell about programs that contain several faults.
+
+Type checking itself is covered by Pierce~\cite{pierce2002}. The flow-sensitive parts of our semantic
+analyser---definite assignment, and the refinement of optional values inside a guarded branch---are instances of
+the data-flow framework presented by Nielson et al.~\cite{nielson1999}.
+
+\subsection{Units of Measure and Information-Flow Analysis}
+
+Kennedy's \emph{dimension types}~\cite{kennedy1994} extend a type system so that numeric types carry a unit
+expressed as a product of base units raised to integer powers. Multiplication adds exponents, division subtracts
+them, and addition requires equal exponents. This is precisely the rule that would have caught the Mars Climate
+Orbiter error and the dose-plus-weight mistake mentioned in the introduction, and it is the formulation used here.
+
+Taint analysis tracks data from \emph{sources} to \emph{sinks}. TaintDroid~\cite{enck2010} applies it dynamically
+to detect private data leaving a smartphone. We use a simple static variant: values read from inputs marked
+\code{phi} are tainted, taint propagates through arithmetic, string concatenation and user functions, and it is
+cleared only by an explicit \code{anonymize()} call. Reaching \code{print} or \code{export} with a tainted value is
+an error. The motivation is regulatory rather than technical: the HIPAA Privacy Rule restricts the disclosure of
+individually identifiable health information and describes de-identification procedures~\cite{hipaa}.
+
+\subsection{Machine Learning for Program Defects}
+
+Allamanis et al.~\cite{allamanis2018} survey the use of statistical models of source code, building on the
+observation that real programs are repetitive and predictable~\cite{hindle2012}. DeepFix~\cite{gupta2017} trains a
+sequence-to-sequence network to repair common syntax and type errors in student C programs. DeepBugs~\cite{pradel2018}
+learns from name-based features to flag bugs such as swapped arguments and wrong binary operators---close in
+spirit to the inverted-comparison faults we study. Graph neural networks over syntax and data-flow edges have
+also been used to detect variable misuse~\cite{allamanis2018graphs}. These systems work on general-purpose code and
+operate on tokens or graphs. We take a different, lighter route: the learned model sees \emph{what the compiler
+already computed}---counts of each diagnostic, structural statistics, and a few clinical-rule patterns---which
+keeps the model small, makes its inputs inspectable, and lets it use the compiler as a feature extractor rather than
+re-learning grammar.
+
+\subsection{GANs, Augmentation and Imbalanced Learning}
+
+A generative adversarial network trains a generator $G$ and a discriminator $D$ in a two-player game
+\cite{goodfellow2014}; the conditional variant feeds a class label to both networks so that samples can be drawn for a
+chosen class~\cite{mirza2014}. Training can be unstable, and a large part of the subsequent literature addresses
+that: label smoothing and related heuristics~\cite{salimans2016}, the Wasserstein objective~\cite{arjovsky2017} and
+its gradient-penalty form~\cite{gulrajani2017}. In healthcare, medGAN~\cite{choi2017} generates synthetic patient
+records, and CTGAN~\cite{xu2019} handles mixed tabular data; the Data Augmentation GAN~\cite{antoniou2017} was
+proposed specifically for the low-data regime. For class imbalance, the classical alternatives are random
+oversampling and SMOTE~\cite{chawla2002}, which interpolates between a minority sample and one of its nearest
+neighbours; He and Garcia~\cite{he2009} review the field. A GAN can also serve as an anomaly detector: AnoGAN
+\cite{schlegl2017} trains on normal data only and scores an input by how poorly the generator can reproduce it. We use
+a lighter-weight version of this idea, scoring with the discriminator or critic, and compare it with Isolation
+Forest~\cite{liu2008} and the one-class SVM~\cite{scholkopf2001}.
+
+\subsection{Survey of Related Approaches}
+
+\begin{table}[H]
+\centering
+\caption{Related approaches compared with the system built in this project.}
+\label{tab:survey}
+\small
+\begin{tabularx}{\textwidth}{p{2.6cm}p{2.5cm}Xp{3.0cm}}
+\toprule
+\textbf{Approach} & \textbf{Domain} & \textbf{Main idea} & \textbf{Limitation for our setting}\\
+\midrule
+Classical front end \cite{aho2006} & General languages & Lexing, parsing, type checking & Blind to units, ranges, PHI\\
+Dimension types \cite{kennedy1994} & Scientific code & Units as exponent vectors & No privacy or missing-value rules\\
+TaintDroid \cite{enck2010} & Mobile apps & Dynamic information-flow tracking & Runtime only; no clinical semantics\\
+DeepFix \cite{gupta2017} & Student C programs & Seq2seq repair of syntax/type errors & Needs large labelled corpus\\
+DeepBugs \cite{pradel2018} & JavaScript & Name-based bug classifiers & No domain knowledge\\
+SMOTE \cite{chawla2002} & Tabular data & Interpolate minority neighbours & Not generative; stays inside the convex hull\\
+medGAN / CTGAN \cite{choi2017,xu2019} & Patient records / tables & GAN-based synthetic records & Not applied to program features\\
+AnoGAN \cite{schlegl2017} & Medical images & Anomaly scoring with a GAN & Images, not programs\\
+\textbf{This work} & Medical-data programs & Domain-aware front end $+$ learned error-family classifier with GAN augmentation & Synthetic corpus; DSL rather than a mainstream language\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Gap and Positioning}
+
+None of the surveyed systems combines (a) a front end with built-in clinical semantics, (b) a learned classifier that
+sits on top of that front end and reasons about root cause, and (c) an explicit evaluation of GAN-based augmentation
+against simple resampling baselines in the same setting. That combination is what this project attempts. It does so at
+laboratory scale: the language is a purpose-built DSL, and the corpus is synthetic. We return to the consequences of
+those choices in Section~5.8.
+
+\subsection{Limitations of Existing Approaches}
+
+Several limitations of existing approaches shaped our design choices:
+
+\begin{enumerate}
+    \item General-purpose compilers do not check units, ranges, privacy or missingness, so the most dangerous
+    clinical mistakes pass silently.
+    \item Rule-based analyses are precise but incomplete; they cannot flag a rule that is merely \emph{wrong}.
+    \item With several coexisting faults, the first reported diagnostic may not be the root cause, and phase gating hides
+    later-phase faults entirely.
+    \item Learned bug detectors require large corpora, which regulated domains cannot provide.
+    \item GAN training is unstable and data-hungry, and its benefit over cheap resampling is rarely tested on the same
+    task.
+\end{enumerate}
+
+\newpage

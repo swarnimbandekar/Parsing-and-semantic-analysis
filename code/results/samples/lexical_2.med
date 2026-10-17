@@ -1,0 +1,23 @@
+input temperature: degC range(25, 44);
+input pulse: bpm range(10, 220);
+input systolic: mmHg range(40, 240);
+input bag_ml: ml range(100, ~ 5000);
+input run_hours: hour range(0.5, 12);
+
+if (temperature > 38.5 degC) {
+    print("ALERT fever");
+}
+if (temperature < 36.0 degC) {
+    print("ALERT hypothermia");
+}
+let shock_index = pulse / systolic;
+if (shock_index > 1.0 bpm/mmHg) {
+    print("ALERT shock");
+}
+if (systolic < 90 mmHg) {
+    print("ALERT hypotension");
+}
+let rate: ml/hour = bag_ml / run_hours;
+if (rate > 300 ml/hour) {
+    print("ALERT high_rate");
+}

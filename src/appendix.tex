@@ -1,0 +1,115 @@
+% ============================================================
+% APPENDICES
+% ============================================================
+\appendix
+\section{MedScript Grammar}
+
+The grammar below is the one implemented by the recursive-descent parser. Terminals are in quotes; \code{ID},
+\code{NUM}, \code{STR} and \code{UNIT} are token classes.
+
+\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize]
+program    = { decl } ;
+decl       = inputDecl | constDecl | funcDecl | stmt ;
+inputDecl  = "input" ID ":" type [ "phi" ]
+             [ "range" "(" signedNum "," signedNum ")" ] ";" ;
+constDecl  = "const" ID ":" type "=" expr ";" ;
+funcDecl   = "func" ID "(" [ param { "," param } ] ")" "->" type block ;
+param      = ID ":" type ;
+type       = ( "int" | "float" | "bool" | "string" | unitType ) [ "?" ] ;
+unitType   = unitTerm { ( "*" | "/" ) unitTerm } ;
+unitTerm   = UNIT [ "^" NUM ] ;
+
+stmt       = letStmt | ifStmt | whileStmt | returnStmt | assignStmt
+           | exprStmt | block ;
+letStmt    = "let" ID [ ":" type ] [ "=" expr ] ";" ;
+assignStmt = ID "=" expr ";" ;
+ifStmt     = "if" "(" expr ")" block [ "else" ( ifStmt | block ) ] ;
+whileStmt  = "while" "(" expr ")" block ;
+returnStmt = "return" [ expr ] ";" ;
+exprStmt   = expr ";" ;
+block      = "{" { stmt } "}" ;
+
+expr       = orExpr ;
+orExpr     = andExpr { "||" andExpr } ;
+andExpr    = eqExpr  { "&&" eqExpr } ;
+eqExpr     = relExpr { ( "==" | "!=" ) relExpr } ;
+relExpr    = addExpr { ( "<" | ">" | "<=" | ">=" ) addExpr } ;
+addExpr    = mulExpr { ( "+" | "-" ) mulExpr } ;
+mulExpr    = unary   { ( "*" | "/" | "%" ) unary } ;
+unary      = ( "-" | "!" ) unary | primary ;
+primary    = NUM [ unitType ] | STR | "true" | "false"
+           | ID [ "(" [ expr { "," expr } ] ")" ] | "(" expr ")" ;
+\end{lstlisting}
+
+A unit suffix after a number extends over \code{/} only when the next token is a unit, so \code{15 mg/kg} is a single
+literal while \code{15 mg / weight} is a division.
+
+\section{Diagnostic Catalogue}
+
+\begin{longtable}{llllp{6.3cm}}
+\toprule
+\textbf{Code} & \textbf{Phase} & \textbf{Severity} & \textbf{Family} & \textbf{Meaning}\\
+\midrule
+\endhead
+LEX001 & lexer & error & lexical & illegal character\\
+LEX002 & lexer & error & lexical & malformed number\\
+LEX003 & lexer & error & lexical & unterminated string literal\\
+SYN001 & parser & error & syntax & expected token not found\\
+SYN002 & parser & error & syntax & unexpected token in expression\\
+SYN003 & parser & error & syntax & unexpected end of file\\
+SEM001 & semantic & error & name & undeclared identifier or function\\
+SEM002 & semantic & error & name & redeclaration\\
+SEM003 & semantic & error & name & use before initialisation\\
+SEM009 & semantic & error & name & assignment to an input or constant\\
+SEM004 & semantic & error & type & type mismatch\\
+SEM006 & semantic & error & type & wrong argument count or type\\
+SEM008 & semantic & error & type & condition is not boolean\\
+SEM005 & semantic & error & unit & unit-of-measure mismatch\\
+DOM001 & semantic & error & range & implausible value or threshold outside declared range\\
+DOM002 & semantic & error & phi & PHI reaches an output sink\\
+DOM003 & semantic & error & missing & optional value used without presence check\\
+SEM007 & semantic & error & logic & missing return on some path\\
+DOM004 & semantic & error & logic & division by constant zero\\
+DOM005 & semantic & error & logic & divisor range includes zero\\
+W001 & semantic & warning & logic & unreachable code\\
+W002 & semantic & warning & valid & unused variable\\
+W003 & semantic & warning & logic & constant condition\\
+\bottomrule
+\end{longtable}
+
+\section{Fault-Injection Operators}
+
+Table~\ref{tab:ops} lists the operators together with the number of times each was attempted while building the
+corpus and how often the resulting fault was kept. \emph{Tried} counts every attempt, including those where the
+operator was not applicable to the sampled program (for example, removing an \code{anonymize} call from a program
+that has none); \emph{Kept} counts attempts that produced a program in which the fault manifested. The percentage is
+therefore a mixture of applicability and manifestation, and it is not a measure of compiler accuracy.
+
+{\small
+\input{tables/operators.tex}
+}
+
+\section{Running the Code}
+
+The repository accompanying this report has the following layout.
+
+\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize]
+code/
+  medscript/   lexer, parser, ast_nodes, semantic, ir, driver, equiv
+               generator, mutations, corpus, features
+  ml/          gan.py (conditional GAN), augment.py (SMOTE, jitter, ...)
+  tests/       test_compiler.py (38 unit tests)
+  examples/    triage_ok, phi_leak, inverted_rule, syntax_errors,
+               missing_value, fold_demo (.med)
+  medcheck.py  compiler + learned root-cause estimate
+  run_experiments.py   make_figures.py
+  results/     JSON results of every experiment
+  models/      trained random-forest classifier
+\end{lstlisting}
+
+\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize]
+python -m unittest discover -s tests     # unit tests
+python medcheck.py examples/phi_leak.med # compile + classify a program
+python run_experiments.py                # all experiments (~45 min, 10 cores)
+python make_figures.py                   # figures and LaTeX tables
+\end{lstlisting}

@@ -1,0 +1,186 @@
+{
+ "lex_string": {
+  "tried": 362,
+  "manifested": 361
+ },
+ "lex_illegal": {
+  "tried": 332,
+  "manifested": 332
+ },
+ "lex_number": {
+  "tried": 311,
+  "manifested": 307
+ },
+ "syn_close_brace": {
+  "tried": 175,
+  "manifested": 175
+ },
+ "syn_operand": {
+  "tried": 167,
+  "manifested": 167
+ },
+ "syn_semicolon": {
+  "tried": 170,
+  "manifested": 170
+ },
+ "syn_paren": {
+  "tried": 173,
+  "manifested": 173
+ },
+ "syn_keyword": {
+  "tried": 176,
+  "manifested": 176
+ },
+ "syn_open_brace": {
+  "tried": 139,
+  "manifested": 139
+ },
+ "name_typo": {
+  "tried": 208,
+  "manifested": 208
+ },
+ "name_delete_decl": {
+  "tried": 182,
+  "manifested": 182
+ },
+ "name_func": {
+  "tried": 173,
+  "manifested": 128
+ },
+ "name_redecl": {
+  "tried": 156,
+  "manifested": 151
+ },
+ "name_assign_input": {
+  "tried": 189,
+  "manifested": 189
+ },
+ "name_uninit": {
+  "tried": 185,
+  "manifested": 142
+ },
+ "type_string_assign": {
+  "tried": 194,
+  "manifested": 150
+ },
+ "type_arity": {
+  "tried": 202,
+  "manifested": 148
+ },
+ "type_bool_assign": {
+  "tried": 189,
+  "manifested": 189
+ },
+ "type_cond": {
+  "tried": 170,
+  "manifested": 170
+ },
+ "type_float_int": {
+  "tried": 181,
+  "manifested": 181
+ },
+ "type_return": {
+  "tried": 210,
+  "manifested": 162
+ },
+ "unit_decl": {
+  "tried": 210,
+  "manifested": 206
+ },
+ "unit_add": {
+  "tried": 215,
+  "manifested": 214
+ },
+ "unit_rate": {
+  "tried": 195,
+  "manifested": 86
+ },
+ "unit_return": {
+  "tried": 231,
+  "manifested": 74
+ },
+ "unit_swap_literal": {
+  "tried": 225,
+  "manifested": 212
+ },
+ "unit_drop": {
+  "tried": 218,
+  "manifested": 208
+ },
+ "range_decl": {
+  "tried": 323,
+  "manifested": 323
+ },
+ "range_literal": {
+  "tried": 295,
+  "manifested": 267
+ },
+ "range_const": {
+  "tried": 307,
+  "manifested": 137
+ },
+ "range_threshold": {
+  "tried": 321,
+  "manifested": 273
+ },
+ "phi_concat": {
+  "tried": 222,
+  "manifested": 222
+ },
+ "phi_func": {
+  "tried": 241,
+  "manifested": 241
+ },
+ "phi_direct": {
+  "tried": 202,
+  "manifested": 202
+ },
+ "phi_removeanon": {
+  "tried": 219,
+  "manifested": 116
+ },
+ "phi_alias": {
+  "tried": 219,
+  "manifested": 219
+ },
+ "miss_make_optional": {
+  "tried": 410,
+  "manifested": 406
+ },
+ "miss_unguard": {
+  "tried": 442,
+  "manifested": 192
+ },
+ "miss_new_use": {
+  "tried": 402,
+  "manifested": 402
+ },
+ "logic_inverted": {
+  "tried": 154,
+  "manifested": 148
+ },
+ "logic_unreachable": {
+  "tried": 160,
+  "manifested": 112
+ },
+ "logic_constcond": {
+  "tried": 193,
+  "manifested": 193
+ },
+ "logic_div_zero": {
+  "tried": 174,
+  "manifested": 174
+ },
+ "logic_range_zero": {
+  "tried": 193,
+  "manifested": 101
+ },
+ "logic_missing_return": {
+  "tried": 166,
+  "manifested": 109
+ },
+ "logic_wrong_message": {
+  "tried": 165,
+  "manifested": 163
+ }
+}

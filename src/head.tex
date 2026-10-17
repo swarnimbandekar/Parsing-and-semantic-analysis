@@ -1,0 +1,207 @@
+\documentclass[12pt,a4paper]{article}
+
+% ============================================================
+% PACKAGES
+% ============================================================
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{times}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{amsmath,amssymb}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+\usetikzlibrary{
+    shapes.geometric,
+    arrows.meta,
+    positioning,
+    fit,
+    calc,
+    backgrounds
+}
+
+\pgfplotsset{compat=1.18}
+
+% ============================================================
+% HYPERLINKS
+% ============================================================
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue,
+    pdftitle={Intelligent Compiler for Detecting Errors in Medical Data Processing Programs Using GAN}
+}
+
+% ============================================================
+% LINE SPACING
+% ============================================================
+\onehalfspacing
+\setlength{\parskip}{0.2em}
+
+% ============================================================
+% HEADER / FOOTER
+% ============================================================
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Compiler Design Lab -- CSE3024}
+\fancyhead[R]{VIT-AP University}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14.5pt}
+
+% ============================================================
+% CODE STYLE
+% ============================================================
+\definecolor{codegreen}{rgb}{0,0.5,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+
+\lstdefinelanguage{MedScript}{
+    morekeywords={input,const,func,let,if,else,while,return,true,false,int,float,bool,string,phi,range},
+    morekeywords=[2]{kg,lb,gram,mg,ml,bpm,mmHg,degC,degF,metre,hour},
+    morekeywords=[3]{print,export,present,anonymize,lb_to_kg,degF_to_degC,g_to_mg,abs,min,max},
+    keywordstyle=\color{blue}\bfseries,
+    keywordstyle=[2]\color{orange!80!black},
+    keywordstyle=[3]\color{purple},
+    sensitive=true,
+    morecomment=[l]{//},
+    morestring=[b]"
+}
+
+\lstset{
+    language=C,
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=\color{blue},
+    commentstyle=\color{codegreen},
+    stringstyle=\color{codepurple},
+    numbers=left,
+    numberstyle=\tiny\color{codegray},
+    stepnumber=1,
+    numbersep=8pt,
+    frame=single,
+    breaklines=true,
+    showstringspaces=false,
+    xleftmargin=1.6em,
+    framexleftmargin=1.2em
+}
+
+% ============================================================
+% TITLE FORMAT
+% ============================================================
+\titleformat{\section}
+{\large\bfseries}
+{\thesection.}{0.5em}{}
+
+\titleformat{\subsection}
+{\normalsize\bfseries}
+{\thesubsection}{0.5em}{}
+
+\captionsetup{font=small,labelfont=bf}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\ie}{\textit{i.e.,}\xspace}
+\providecommand{\xspace}{}
+
+\input{tables/numbers.tex}
+
+\begin{document}
+
+% ============================================================
+% PAGE 1 -- TITLE PAGE
+% ============================================================
+\begin{titlepage}
+\begin{center}
+
+\vspace*{0.2cm}
+
+\includegraphics[width=9cm,trim=0 185 0 185,clip]{vit-ap-university-logo.png}
+
+\vspace{0.2cm}
+
+{\large
+Amaravati, Andhra Pradesh, India
+}
+
+\vspace{0.7cm}
+
+{\Large\bfseries
+COMPILER DESIGN LAB REPORT
+}
+
+\vspace{0.3cm}
+
+{\large
+\textbf{Subject Name: Compiler Design Lab}
+}
+
+\vspace{0.1cm}
+
+{\large
+\textbf{Course Code: CSE3024}
+}
+
+\vspace{0.8cm}
+
+{\LARGE\bfseries
+Intelligent Compiler for Detecting Errors in\\
+Medical Data Processing Programs Using GAN
+}
+
+\vspace{0.6cm}
+
+\begin{tabular}{rl}
+\textbf{Compiler Design Component:} & Parsing \& Semantic Analysis\\[0.15cm]
+\textbf{Machine Learning Component:} & Error Classification\\[0.15cm]
+\textbf{Application Domain:} & Healthcare
+\end{tabular}
+
+\vspace{1.0cm}
+
+\textbf{Submitted by}
+
+\vspace{0.4cm}
+
+\begin{tabular}{ll}
+\textbf{Swarnim Bandekar} & \textbf{Regd. No.:} 24BCB7157 \\[0.4cm]
+\textbf{Lithin CG} & \textbf{Regd. No.:} 24BCB7016 \\
+\end{tabular}
+
+\vspace{1.0cm}
+
+\textbf{Under the Guidance of}
+
+\vspace{0.3cm}
+
+\textbf{Dr. Prakash Kumar Sarangi}
+
+\vspace{1.0cm}
+
+{\large
+School of Computer Science and Engineering (SCOPE)\\
+VIT-AP University\\
+Amaravati, Andhra Pradesh, India
+}
+
+\vspace{0.4cm}
+
+{\large
+Academic Year 2026--2027
+}
+
+\end{center}
+\end{titlepage}

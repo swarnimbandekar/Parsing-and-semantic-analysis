@@ -1,0 +1,87 @@
+\documentclass[conference]{IEEEtran}
+
+\IEEEoverridecommandlockouts
+
+% ---------------------------------------------------------------- packages
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{adjustbox}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,fit,calc,backgrounds}
+\usepackage{textcomp}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\providecommand{\textasciicircum}{\^{}}
+
+% --------------------------------------------------------------- listings
+\definecolor{codegreen}{rgb}{0,0.5,0}
+\lstdefinelanguage{MedScript}{
+    morekeywords={input,const,func,let,if,else,while,return,true,false,int,float,bool,string,phi,range},
+    morekeywords=[2]{kg,lb,gram,mg,ml,bpm,mmHg,degC,degF,metre,hour},
+    morekeywords=[3]{print,export,present,anonymize,lb_to_kg,degF_to_degC,g_to_mg,abs,min,max},
+    keywordstyle=\color{blue}\bfseries,
+    keywordstyle=[2]\color{orange!80!black},
+    keywordstyle=[3]\color{purple},
+    sensitive=true, morecomment=[l]{//}, morestring=[b]"
+}
+\lstset{
+    language=C, basicstyle=\ttfamily\fontsize{6.5}{7.5}\selectfont,
+    keywordstyle=\color{blue}, commentstyle=\color{codegreen}, stringstyle=\color{violet},
+    numbers=none, frame=single, breaklines=true, breakindent=0pt, showstringspaces=false,
+    xleftmargin=0.2em, xrightmargin=0.2em, columns=fullflexible, aboveskip=4pt, belowskip=2pt
+}
+
+\input{tables/numbers.tex}
+
+\begin{document}
+
+\title{Intelligent Compiler for Detecting Errors in\\
+Medical Data Processing Programs Using GAN\thanks{Course project for Compiler Design Lab (CSE3024), School of Computer
+Science and Engineering (SCOPE), VIT-AP University. Compiler design component: parsing and semantic analysis.
+Machine learning component: error classification. Application domain: healthcare.}}
+
+\author{\IEEEauthorblockN{Swarnim Bandekar}
+\IEEEauthorblockA{\textit{School of Computer Science and Engineering (SCOPE)}\\
+\textit{VIT-AP University}\\
+Amaravati, Andhra Pradesh, India\\
+Regd. No. 24BCB7157}
+\and
+\IEEEauthorblockN{Lithin CG}
+\IEEEauthorblockA{\textit{School of Computer Science and Engineering (SCOPE)}\\
+\textit{VIT-AP University}\\
+Amaravati, Andhra Pradesh, India\\
+Regd. No. 24BCB7016}}
+
+\maketitle
+
+\begin{abstract}
+Programs that process medical data can contain mistakes that a general-purpose compiler never reports: a dose added to a
+body weight, a temperature threshold typed ten times too large, a laboratory value that may be missing but is used
+unguarded, or a patient name that reaches a log file. This paper describes a compiler front end built to catch such
+errors, and a learned classifier that names the root-cause family of each defective program. The front end is written for
+MedScript, a small domain-specific language with units of measure in its types, declared physiological ranges,
+protected-health-information tagging and optional values. It comprises a hand-written lexer, a recursive-descent parser with
+error recovery, and a semantic analyser that checks types, units, range plausibility, taint flow of patient identifiers,
+optional values, definite assignment and division by zero; a three-address-code generator and optimiser complete the
+pipeline. On a synthetic corpus of \NProg{} programs in ten classes, classifiers using compiler-derived features reach
+\RFAcc\% accuracy, against \RuleFirstAcc\% for the family of the first diagnostic, and they catch faults the compiler cannot see,
+such as an inverted fever rule. A conditional generative adversarial network (GAN) trained to augment rare error classes did not
+help: Gaussian jitter and SMOTE performed better, and only about 4\% of the GAN's samples were recognisable as the requested class.
+A GAN discriminator trained on valid programs did detect the compiler-invisible faults well (AUROC 0.98). The corpus is synthetic,
+and the results should be read accordingly.
+\end{abstract}
+
+\begin{IEEEkeywords}
+compiler design, semantic analysis, parsing, units of measure, error classification, generative adversarial network,
+healthcare software
+\end{IEEEkeywords}

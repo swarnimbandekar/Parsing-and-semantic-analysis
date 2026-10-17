@@ -1,0 +1,33 @@
+// ward screening routine
+input wt: kg range(0.5, 150);
+input sbp: mmHg range(50, 260);
+input blood_sugar: mg/ml? range(0, 20);
+
+const limit: mg = 3 * 250 mg;
+const MAX_DOSE: mg = 2000 mg;
+
+func calc_dose(wt: kg, mgkg: mg/kg) -> mg {
+    let amount: mg = mgkg * wt;
+    if (amount > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return amount;
+}
+
+let margin: mg = limit - 100 mg;
+print(margin);
+let dose: mg = calc_dose(wt, 10 mg/kg);
+print(dose);
+if (sbp < 800 mmHg) {
+    print("ALERT hypotension");
+}
+if (sbp > 160 mmHg) {
+    print("ALERT hypertension");
+}
+if (!present(blood_sugar)) {
+    print("lab missing");
+} else {
+    if (blood_sugar < 0.6 mg/ml) {
+        print("ALERT hypoglycemia");
+    }
+}

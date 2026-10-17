@@ -1,0 +1,51 @@
+% ============================================================
+% CONCLUSION
+% ============================================================
+\section{Conclusion and Future Work}
+
+\subsection{Conclusion}
+
+We set out to build an intelligent compiler for medical data-processing programs: a front end that understands the
+constraints of the domain, plus a learned component that classifies errors and uses a GAN to cope with scarce labelled
+data. The first two parts worked as intended; the third did not.
+
+The compiler for MedScript implements the usual phases---scanner, recursive-descent parser with insertion and panic-mode recovery,
+semantic analyser, three-address code, optimiser---and extends the semantic phase with checks that matter in healthcare:
+unit-of-measure checking by dimension vectors, physiological plausibility by interval reasoning, taint tracking of protected
+health information, flow-sensitive handling of optional values, definite assignment, and division-by-zero detection. All of the
+38 unit tests pass, and on 300 generated programs the optimiser preserved observable behaviour on random inputs in every case. Compilation
+time grows roughly linearly with program size at about \MsPerKloc{} ms per thousand lines.
+
+For classification, a random forest over 101 compiler-derived features reached \RFAcc\% accuracy on 2{,}000 held-out programs, against
+\RuleFirstAcc\% and \RulePrioAcc\% for two rule-based baselines. The gain comes from two situations that rules handle poorly: faults that
+produce no diagnostic (inverted clinical rules), and programs in which cascades or several faults make the first diagnostic
+misleading. The learning curves show that surface features of the source text are nearly useless on their own (macro-F1 0.44), so
+the value of the learner depends on the compiler beneath it.
+
+The GAN result is negative, and we think it is more useful reported than hidden. With 5 to 100 real programs per faulty class, conditional
+GANs (BCE and WGAN-GP) gave no improvement over no augmentation for a random forest and a clear loss for an MLP, while Gaussian
+jitter and SMOTE gave gains of up to four points of macro-F1. A direct check of the synthetic vectors explains why: they were recognised as the requested class
+only about 4\% of the time, and class-balanced training batches raised that only to chance level. A GAN discriminator trained on valid programs did
+turn out to be a good unsupervised detector of the faults the compiler misses (AUROC about 0.98), but that is a narrower use than the one the project began with.
+
+\textbf{Limitations.} The corpus is generated, and the test programs come from the same generator as the training programs, so the accuracy figures describe the
+generator's faults rather than the faults of real clinical code. The pattern features rely on a hand-written vocabulary. MedScript is a small DSL, not a language
+that clinical programmers use today. The optimiser is deliberately simple. These limits are discussed in Section~5.8.
+
+\subsection{Future Work}
+
+\begin{itemize}
+    \item \textbf{Real data.} Evaluate on hand-written MedScript programs written by people who did not see the generator, and, more ambitiously, port the
+    checks (units, PHI taint, optional values) to a mainstream clinical-scripting language such as Python or R through an AST-based analyser.
+    \item \textbf{Better generative models.} Try tabular generators such as CTGAN with proper handling of discrete features, pretrain on the abundant
+    valid class, and generate \emph{programs} rather than feature vectors, for instance by training a model over the mutation operators, so that synthetic examples can also be compiled and checked.
+    \item \textbf{Learned localisation.} Predict not only the error family but the line at which a soft fault such as an inverted comparison occurs, for example with a
+    graph neural network over the syntax tree.
+    \item \textbf{Richer semantics.} Add implicit unit conversion with checked conversion factors, interval analysis through loops, inter-procedural taint with function
+    summaries, and a three-valued treatment of missing values.
+    \item \textbf{A stronger back end.} Global value numbering, propagation across basic blocks, and code generation to a real target such as LLVM IR, so that the pipeline is
+    complete from source to machine code.
+    \item \textbf{Human evaluation.} Study whether the root-cause estimate shortens the time a developer needs to find a fault compared with raw diagnostics.
+\end{itemize}
+
+\newpage

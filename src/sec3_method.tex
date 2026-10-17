@@ -1,0 +1,509 @@
+% ============================================================
+% PROPOSED METHODOLOGY
+% ============================================================
+\section{Proposed Methodology}
+
+\subsection{System Overview}
+
+The system has two cooperating halves, shown in Figure~\ref{fig:arch}. The \emph{compiler half} is a conventional
+pipeline---scanner, parser, semantic analyser, intermediate-code generator, optimiser---for a domain-specific
+language called MedScript. Every phase reports diagnostics with a stable code, a position and a message. The
+\emph{learning half} takes what the compiler produced (tokens, syntax tree, diagnostics) and condenses it into a
+fixed-length feature vector. A classifier maps that vector to one of ten classes: \emph{valid} or one of nine error
+families. A conditional GAN, trained on feature vectors of the labelled corpus, supplies extra synthetic records of
+the rare classes at training time. At inference time the GAN is not used; the deployed artefact is the compiler plus
+a random-forest classifier.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  box/.style={rectangle,rounded corners=3pt,draw,minimum height=0.9cm,minimum width=2.1cm,align=center,font=\small,fill=blue!6},
+  ml/.style={rectangle,rounded corners=3pt,draw,minimum height=0.9cm,minimum width=2.4cm,align=center,font=\small,fill=orange!12},
+  gan/.style={rectangle,rounded corners=3pt,draw,minimum height=0.9cm,minimum width=2.4cm,align=center,font=\small,fill=red!8},
+  arr/.style={-{Stealth[length=2.2mm]},thick},
+  dsh/.style={-{Stealth[length=2mm]},dashed}
+]
+\node[box] (src) at (0,0) {MedScript\\source};
+\node[box] (lex) at (2.9,0) {Lexer\\(scanner)};
+\node[box] (par) at (5.8,0) {Parser\\(recursive descent)};
+\node[box] (sem) at (8.7,0) {Semantic\\analyser};
+\node[box] (ir)  at (11.6,0) {IR generator\\+ optimiser};
+\draw[arr] (src) -- (lex);
+\draw[arr] (lex) -- (par);
+\draw[arr] (par) -- (sem);
+\draw[arr] (sem) -- (ir);
+
+\node[box,fill=green!8,minimum width=4.2cm] (diag) at (5.8,-2.3) {Diagnostics + features\\(101-dimensional vector)};
+\draw[dsh] (lex.south) -- ++(0,-0.6) -| ($(diag.north)+(-1.0,0)$);
+\draw[dsh] (par.south) -- (diag.north);
+\draw[dsh] (sem.south) -- ++(0,-0.6) -| ($(diag.north)+(1.0,0)$);
+
+\node[ml] (clf) at (10.0,-2.3) {Error-family\\classifier};
+\draw[arr] (diag) -- (clf);
+\node[box,fill=gray!10] (rep) at (13.0,-2.3) {Report:\\diagnostics +\\root cause};
+\draw[arr] (clf) -- (rep);
+\draw[arr] (ir) -- (13.0,0) -- (rep.north);
+
+\node[box,fill=gray!10] (gen) at (0.8,-4.6) {Program generator\\+ 46 fault operators};
+\node[ml,fill=orange!6] (corp) at (4.2,-4.6) {Labelled feature\\vectors};
+\node[gan] (cg) at (7.4,-4.6) {Conditional\\GAN};
+\node[gan,fill=red!4] (syn) at (10.4,-4.6) {Synthetic\\vectors};
+\draw[arr] (gen) -- (corp);
+\draw[arr] (corp) -- (cg);
+\draw[arr] (cg) -- (syn);
+\draw[arr] (syn) -- (clf.south);
+\draw[dsh] (corp.north) -- ++(0,0.9) -| (diag.south west);
+\node[font=\scriptsize,align=center] at (4.2,-3.35) {same extractor};
+\end{tikzpicture}}
+\caption{Architecture of the proposed system. Solid arrows are data flow, dashed arrows are diagnostics and features
+collected from the compiler phases. The GAN branch (bottom) is used only to enlarge the training set.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{The MedScript Language}
+
+MedScript is deliberately small: it contains just enough to express the programs a clinical-informatics student
+might write, and just enough machinery to make the domain-specific checks meaningful. Its main design decisions
+are the following.
+
+\begin{itemize}
+    \item \textbf{Units are part of the type.} A numeric type is \code{int}, \code{float}, or a float tagged with a
+    unit expression such as \code{kg}, \code{mg/kg} or \code{kg/metre\textasciicircum 2}. Literals carry units:
+    \code{38.0 degC}, \code{15 mg/kg}.
+    \item \textbf{Inputs are declared with metadata.} \code{input weight: kg range(2, 300);} declares a read-only
+    patient quantity with a physiological range. \code{phi} marks protected health information.
+    \item \textbf{Optional values.} A trailing \code{?} (as in \code{mg/ml?}) means the value may be missing. It
+    must be tested with \code{present(x)} before use.
+    \item \textbf{Two output sinks.} \code{print} and \code{export}; both reject PHI unless it passed through
+    \code{anonymize}.
+    \item \textbf{Ordinary control flow.} \code{if}/\code{else}, \code{while}, functions with typed parameters and
+    return types, \code{let} bindings with optional type inference.
+\end{itemize}
+
+Table~\ref{tab:units} lists the unit vocabulary. The single-letter units one might expect (\code{m}, \code{g},
+\code{h}) are spelled \code{metre}, \code{gram} and \code{hour}, so that those short names stay available as
+identifiers.
+
+\begin{table}[H]
+\centering
+\caption{Units of measure known to the compiler and the plausibility bounds used for literals.}
+\label{tab:units}
+\small
+\begin{tabular}{llr}
+\toprule
+\textbf{Unit} & \textbf{Meaning} & \textbf{Plausible literal range}\\
+\midrule
+\code{kg}, \code{lb} & body mass & 0.2--500 kg;\ 0.4--1100 lb\\
+\code{gram}, \code{mg} & mass of substance & 0--20 g;\ 0--20000 mg\\
+\code{ml}, \code{hour} & volume, time & 0--10000 ml;\ 0--72 h\\
+\code{bpm} & beats (or breaths) per minute & 0--300\\
+\code{mmHg} & blood pressure & 0--350\\
+\code{degC}, \code{degF} & temperature & 20--45 $^\circ$C;\ 68--113 $^\circ$F\\
+\code{metre} & body height & 0.2--2.5\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A complete program that the compiler accepts is shown in Listing~\ref{lst:ok}. It computes a weight-based dose with
+a safety cap, a body-mass index, a fever alert, a sepsis screen, an alert that is guarded for a possibly missing
+laboratory value, and an anonymised export.
+
+\begin{lstlisting}[language=MedScript,caption={A valid MedScript program (\texttt{examples/triage\_ok.med}).},label={lst:ok}]
+input patient_name: string phi;
+input weight: kg range(2, 300);
+input height: metre range(0.4, 2.3);
+input temp: degC range(30, 43);
+input hr: bpm range(20, 250);
+input lactate: mg? range(0, 400);
+
+const MAX_DOSE: mg = 1000 mg;
+
+func dose_for(w: kg, rate: mg/kg) -> mg {
+    let d: mg = rate * w;
+    if (d > MAX_DOSE) { return MAX_DOSE; }
+    return d;
+}
+func bmi(w: kg, h: metre) -> kg/metre^2 {
+    return w / (h * h);
+}
+
+let dose: mg = dose_for(weight, 15 mg/kg);
+let index = bmi(weight, height);
+let fever = false;
+if (temp > 38.0 degC) { fever = true; print("fever alert"); }
+if (hr > 100 bpm && fever) { print("sepsis screen"); }
+if (present(lactate)) {
+    if (lactate > 200 mg) { print("high lactate"); }
+}
+export(anonymize(patient_name));
+print(dose);
+print(index);
+\end{lstlisting}
+
+\subsection{Lexical Analysis}
+
+The scanner is a hand-written, single-pass, longest-match recogniser. The token classes are summarised in
+Table~\ref{tab:tokens}. Identifiers and keywords share one regular expression; the lexeme is then looked up in the
+keyword set and in the unit set. A numeric lexeme is first collected as the maximal run of letters, digits and dots
+and \emph{then} validated against $[0\text{-}9]^+(.[0\text{-}9]^+)?$; this way \code{3.4.5} and \code{10x} are reported as one
+malformed number rather than as a number followed by stray characters.
+
+\begin{table}[H]
+\centering
+\caption{Token classes of MedScript.}
+\label{tab:tokens}
+\small
+\begin{tabular}{p{1.9cm}p{7.4cm}p{4.0cm}}
+\toprule
+\textbf{Class} & \textbf{Pattern} & \textbf{Examples}\\
+\midrule
+\code{ID} & letter or underscore, then letters, digits, underscores (minus keywords and units) & \code{weight}, \code{dose\_for}\\
+Keyword & fixed set of 16 words & \code{input}, \code{if}, \code{phi}, \code{range}\\
+\code{UNIT} & fixed set of 11 words & \code{kg}, \code{mmHg}, \code{degC}\\
+\code{NUM} & digits, optionally a dot and more digits & \code{38}, \code{0.45}\\
+\code{STR} & double quote, any characters except quote and newline, double quote & \code{"ALERT fever"}\\
+Operators & \code{+ - * / \% < > <= >= == != \&\& || ! = ->} & \\
+Punctuation & \code{( ) \{ \} , ; : ? \textasciicircum} & \\
+Comment & \code{//} to end of line (discarded) & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three lexical diagnostics exist: an illegal character (\code{LEX001}), a malformed number (\code{LEX002}) and an
+unterminated string (\code{LEX003}). Each is \emph{recoverable}: an illegal character is dropped, a malformed number
+is replaced by its longest valid prefix, and an unterminated string consumes the rest of the line. The parser
+therefore still receives a usable token stream, and later phases run normally. This detail matters for
+classification: a lexical error does not hide semantic faults, whereas a syntax error does.
+
+\subsection{Syntax Analysis}
+
+The grammar (Appendix~A gives it in full) is LL(1) apart from two decisions. When a statement begins with an
+identifier, the parser must choose between an assignment and a call; it resolves this with one extra token of
+lookahead (\code{ID =}). Likewise, after a number and a unit, a following \code{/} belongs to the unit expression
+only if the token after it is also a unit. Expressions use precedence climbing over six levels, from \code{||}
+(lowest) to the multiplicative operators. Table~\ref{tab:first} lists the tokens that can begin each kind of
+statement, which are also the synchronisation points used for error recovery.
+
+\begin{table}[H]
+\centering
+\caption{FIRST sets of the statement forms, used for prediction and as synchronisation tokens.}
+\label{tab:first}
+\small
+\begin{tabular}{ll}
+\toprule
+\textbf{Construct} & \textbf{FIRST}\\
+\midrule
+input declaration & \code{input}\\
+constant declaration & \code{const}\\
+function declaration & \code{func}\\
+let / if / while / return & \code{let}\ \ \code{if}\ \ \code{while}\ \ \code{return}\\
+block & \code{\{}\\
+assignment & \code{ID} followed by \code{=}\\
+call statement / expression & \code{ID}, \code{NUM}, \code{STR}, \code{true}, \code{false}, \code{(}, \code{-}, \code{!}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Error recovery.} Two mechanisms are combined. When a \emph{closing} token is missing---\code{;},
+\code{)} or \code{\}}---the parser reports \code{SYN001}, anchors the message at the end of the previous token (where
+a programmer would expect to see it), and carries on as if the token had been inserted. When an expression cannot
+start (\code{SYN002}) the parser raises an internal resynchronisation exception that is caught at statement level;
+the handler skips tokens until a semicolon is consumed or a token from Table~\ref{tab:first} is seen. At most one
+diagnostic is issued per input position, which suppresses most duplicate cascades. A premature end of file yields
+\code{SYN003}. If the parse produced \emph{any} syntax diagnostic, the semantic analyser is not run.
+
+\subsection{Semantic Analysis}
+
+The semantic analyser walks the tree once, keeping a stack of scopes and a small flow state. It is the part of the
+compiler that carries the clinical knowledge, so we describe each check in turn.
+
+\subsubsection{Symbol table and scopes}
+
+Inputs and constants live in a global scope. Top-level \code{let} bindings live in a ``main'' scope layered above
+it; function bodies see only the global scope, their parameters and their own locals. Functions are collected in a
+first pass, so a call may precede the definition. Declaring a name twice in one scope is \code{SEM002}. A
+\code{let} variable that is never read gives the warning \code{W002}.
+
+\subsubsection{Types and units}
+
+Let a numeric type be a pair $\tau[d]$ where $\tau\in\{\texttt{int},\texttt{float}\}$ and $d\in\mathbb{Z}^{U}$ is a
+\emph{dimension vector}, one integer exponent per base unit $u\in U$. A plain number has $d=\mathbf{0}$; the type
+\code{mg/kg} has exponent $+1$ for \code{mg}, $-1$ for \code{kg} and $0$ elsewhere. The typing rules for arithmetic are
+\begin{align}
+&\frac{\Gamma\vdash e_1:\tau_1[d_1]\quad\Gamma\vdash e_2:\tau_2[d_2]\quad d_1=d_2}
+     {\Gamma\vdash e_1\pm e_2:\tau[d_1]}\\[4pt]
+&\frac{\Gamma\vdash e_1:\tau_1[d_1]\quad\Gamma\vdash e_2:\tau_2[d_2]}
+     {\Gamma\vdash e_1\cdot e_2:\tau[d_1+d_2]}\\[4pt]
+&\frac{\Gamma\vdash e_1:\tau_1[d_1]\quad\Gamma\vdash e_2:\tau_2[d_2]}
+     {\Gamma\vdash e_1/e_2:\texttt{float}[d_1-d_2]}
+\end{align}
+and comparison requires $d_1=d_2$ and yields \code{bool}. As an example, the product \code{rate * w} with
+\code{rate}:\code{mg/kg} and \code{w}:\code{kg} has dimension $(+1)_{\text{mg}}+(-1)_{\text{kg}}+(+1)_{\text{kg}}=(+1)_{\text{mg}}$,
+i.e., it is a mass in milligrams, which is exactly what the declaration \code{let d: mg = rate * w} expects.
+Adding \code{weight + 5 lb} fails because $d_1\ne d_2$: \code{kg} and \code{lb} are distinct base units and the
+language does not convert implicitly (conversion goes through \code{lb\_to\_kg}). The literal \code{0} is the only
+dimension-polymorphic value, so that comparisons such as \code{x > 0} remain convenient.
+
+A mismatch between base kinds (a string where a number is expected, a non-boolean condition, a wrong argument count)
+is reported as \code{SEM004}, \code{SEM008} or \code{SEM006}; a mismatch of dimensions alone is \code{SEM005}. Keeping
+the two apart is what lets the classifier distinguish the \emph{type} and \emph{unit} families later.
+
+\subsubsection{Ranges and thresholds}
+
+Every numeric value carries, besides its type, an optional closed interval $[l,h]$ obtained from the declared range
+of an input or from interval arithmetic on constants:
+\begin{align}
+[a,b]+[c,d]&=[a+c,\,b+d],\\
+[a,b]\cdot[c,d]&=[\min P,\max P],\quad P=\{ac,ad,bc,bd\},\\
+[a,b]/[c,d]&=[a,b]\cdot[1/d,\,1/c],\quad\text{defined iff }0\notin[c,d].
+\end{align}
+Two checks use the intervals. (i) A literal that carries a single unit must lie inside the plausibility interval of
+Table~\ref{tab:units}; \code{380 degC} does not. (ii) A comparison between an input with declared range $[l,h]$ and a
+constant $k$ with $k<l$ or $k>h$ is flagged, because the comparison is then always true or always false. Both give
+\code{DOM001}. A threshold exactly equal to a bound, such as \code{hr > 250 bpm} with \code{range(20, 250)}, is accepted.
+
+\subsubsection{Division by zero}
+
+A divisor whose constant value is $0$ gives \code{DOM004}. A divisor whose interval contains $0$ gives \code{DOM005},
+unless a \emph{non-zero fact} is in force for that variable. Non-zero facts are produced by branch conditions such as
+\code{x > 0}, \code{x != 0}, or the negation of \code{x <= 0}, and they hold inside the branch (or after an
+early-returning branch that tests the opposite).
+
+\subsubsection{PHI taint tracking}
+
+Let $\mathrm{t}(e)\in\{0,1\}$ denote whether the value of expression $e$ may contain protected health information.
+\begin{align}
+\mathrm{t}(x)&=\mathit{phi}(x),\\
+\mathrm{t}(e_1\odot e_2)&=\mathrm{t}(e_1)\lor\mathrm{t}(e_2),\\
+\mathrm{t}(\texttt{anonymize}(e))&=0,\\
+\mathrm{t}(f(e_1,\dots,e_n))&=\textstyle\bigvee_i \mathrm{t}(e_i).
+\end{align}
+A \code{let} or assignment copies the taint of its right-hand side to the variable. A call to a sink with any argument
+$e_i$ for which $\mathrm{t}(e_i)=1$ is \code{DOM002}. The analysis is a conservative, flow-insensitive approximation:
+it never misses a leak through the constructs of the language, but a function that discards its tainted argument
+is still treated as propagating it.
+
+\subsubsection{Optional values}
+
+A variable of optional type may be missing. Using it in an expression is \code{DOM003} unless a \emph{presence fact}
+holds. Presence facts come from the guard forms $\texttt{present}(x)$, $\texttt{present}(x)\,\&\&\,c$ (the fact holds
+while evaluating $c$), $\texttt{!present}(x)$ in the else branch, and early exits such as
+\code{if (!present(x)) \{ return 0; \}}, after which $x$ is present for the rest of the block. Branch merging is an
+intersection of facts, so a fact survives a join only if both arms established it.
+
+\subsubsection{Definite assignment, returns and reachability}
+
+The flow state also records which \code{let} variables are definitely assigned; at a join the sets are intersected, and a
+use of a variable outside the set is \code{SEM003}. Whether a block \emph{always returns} is computed bottom-up; a
+non-void function whose body can finish without returning gives \code{SEM007}. A statement after a
+\code{return} gives the warning \code{W001}, and a constant condition gives \code{W003}.
+
+\subsubsection{Diagnostic catalogue}
+
+The analyser can emit 23 distinct codes in total. Each belongs to exactly one error family, which is the label
+space of the classifier (Table~\ref{tab:families}). The complete catalogue with messages is in Appendix~B.
+
+\begin{table}[H]
+\centering
+\caption{The ten classes and the diagnostics that belong to each family.}
+\label{tab:families}
+\small
+\begin{tabular}{clp{7.4cm}}
+\toprule
+\textbf{Id} & \textbf{Class} & \textbf{Diagnostic codes / meaning}\\
+\midrule
+0 & valid & no error (warning \code{W002} allowed)\\
+1 & lexical & \code{LEX001}--\code{LEX003}: illegal character, malformed number, unterminated string\\
+2 & syntax & \code{SYN001}--\code{SYN003}: missing token, unexpected token, unexpected end of file\\
+3 & name & \code{SEM001}, \code{SEM002}, \code{SEM003}, \code{SEM009}: undeclared, redeclared, uninitialised, assignment to input\\
+4 & type & \code{SEM004}, \code{SEM006}, \code{SEM008}: base-type, arity and condition errors\\
+5 & unit & \code{SEM005}: unit-of-measure mismatch\\
+6 & range & \code{DOM001}: implausible value or threshold outside declared range\\
+7 & phi & \code{DOM002}: PHI reaching a sink\\
+8 & missing & \code{DOM003}: optional value used unguarded\\
+9 & logic & \code{SEM007}, \code{DOM004}, \code{DOM005}, \code{W001}, \code{W003}, and rule errors invisible to the compiler\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Intermediate Code and Optimisation}
+
+After a successful analysis the tree is lowered to three-address code. Local variables are renamed uniquely
+(\code{x@3}) so that shadowing cannot confuse later passes, short-circuit operators become conditional jumps, and
+calls become \code{param}/\code{call} sequences. For \code{c = a + b * 10} the generator emits
+\begin{align}
+t_1 &= b * 10\\
+t_2 &= a + t_1\\
+c &= t_2
+\end{align}
+and the optimiser reduces it to $t_1 = b*10;\ c = a + t_1$. The passes are the classical ones~\cite{muchnick1997,aho2006},
+iterated until the code size stops changing (at most four rounds):
+
+\begin{enumerate}
+    \item \textbf{Constant folding and propagation} inside basic blocks, including folding of comparisons, and
+    elimination of \code{ifFalse} jumps with constant conditions.
+    \item \textbf{Algebraic simplification}: $x+0$, $x-0$, $x\cdot 1$, $x/1$.
+    \item \textbf{Local common-subexpression elimination} by value numbering over $(\text{op},a,b)$, invalidated when an
+    operand is redefined.
+    \item \textbf{Unreachable-code removal} after unconditional jumps and returns, and removal of unused labels.
+    \item \textbf{Dead-store elimination} for temporaries and local variables that are never read.
+    \item \textbf{Copy fusion}: $t=a\,\mathit{op}\,b;\ v=t \Rightarrow v=a\,\mathit{op}\,b$ when $t$ has a single use.
+\end{enumerate}
+
+These are deliberately modest compared with a production back end such as LLVM~\cite{lattner2004}; the aim is a
+compact pipeline that is easy to verify. To check that none of the passes changes behaviour, the project includes a
+small virtual machine that executes the three-address code. For a program the test harness draws random input values
+from the declared ranges (leaving about 30\% of the optional ones missing), runs the unoptimised and optimised code, and
+requires the sequences of \code{print} and \code{export} events to be identical.
+
+\subsection{Feature Extraction}
+
+The classifier does not see raw source. For each compiled program the extractor produces a vector of \NFeat{} numbers
+in four groups (Table~\ref{tab:features}). The \emph{diagnostic} group is the interface to the compiler's knowledge:
+it contains the count of each of the 23 codes, the number of errors and warnings, whether the semantic phase ran
+at all, a one-hot encoding of the family and phase of the first error, the number of distinct families that
+appear, and the rank of the most severe one. The \emph{pattern} group exists for faults that produce no diagnostics. For
+each relational operator the extractor looks at a short window of surrounding identifiers and string literals and
+checks whether it contains a word from a small ``high-risk'' vocabulary (\emph{fever}, \emph{tachycardia},
+\emph{hypertension}, \emph{overdose}, \ldots) or a ``low-risk'' vocabulary (\emph{hypothermia}, \emph{bradycardia},
+\emph{hypotension}, \ldots), and counts the four combinations of vocabulary and operator direction. A well-formed
+program has mostly ``high with $>$'' and ``low with $<$''; the other two combinations indicate a reversed rule or a
+mismatched label.
+
+\begin{table}[H]
+\centering
+\caption{Feature groups.}
+\label{tab:features}
+\small
+\begin{tabular}{lrp{9.4cm}}
+\toprule
+\textbf{Group} & \textbf{Dim.} & \textbf{Content}\\
+\midrule
+Token (\code{tok}) & 30 & log-counts of token classes (identifiers, numbers, strings, units, keyword groups,
+punctuation, operator groups), program length, brace and parenthesis balance, semicolons per statement\\
+AST (\code{ast}) & 25 & log-counts of node types, tree size and depth, counts of optional inputs, PHI inputs, ranged
+inputs, sinks, \code{anonymize} and \code{present} calls, literal-zero divisors\\
+Diagnostics (\code{diag}) & 40 & per-code counts (23), error and warning totals, semantic-phase flag, first-error
+family (9) and phase (3), number of distinct families, worst-family rank\\
+Pattern (\code{pat}) & 6 & comparison direction $\times$ alert vocabulary (four counts), number of alert rules, number
+of mismatched rules\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Error Taxonomy and Labelling}
+
+A program has exactly one label. For single-fault programs the label is the family of the injected fault. For
+programs with two injected faults the label is the one with higher \emph{root-cause priority}, using the order
+\begin{align*}
+&\text{syntax}>\text{lexical}>\text{phi}>\text{range}>\\
+&\text{unit}>\text{missing}>\text{type}>\text{name}>\text{logic}.
+\end{align*}
+The order is a modelling decision, not a law. Syntax errors come first because they hide everything else; privacy
+and range errors come next because they are the most safety-critical; \emph{logic} is last because it is the most
+heterogeneous family. A second fault is only injected from a family of lower priority than the first, so the label is
+always well defined.
+
+\subsection{Conditional GAN on Feature Vectors}
+
+Let $x\in\mathbb{R}^{101}$ be a standardised feature vector and $y\in\{0,\dots,9\}$ its class, encoded one-hot as $c$.
+The generator maps a noise vector $z\sim\mathcal{N}(0,I_{32})$ and $c$ to a synthetic vector,
+$\tilde{x}=G(z,c)$, and the discriminator $D(x,c)$ produces a scalar score. Both are multilayer perceptrons with two
+hidden layers of 128 units and LeakyReLU(0.2) activations; the discriminator uses dropout 0.3. They are implemented in
+PyTorch~\cite{paszke2019}.
+
+\paragraph{Vanilla (BCE) objective.} The original minimax game conditioned on the label is
+\begin{multline}
+\min_G\max_D\ \mathbb{E}_{(x,y)}\big[\log D(x,c_y)\big]\\
++\mathbb{E}_{z,y}\big[\log\big(1-D(G(z,c_y),c_y)\big)\big].
+\end{multline}
+In practice the generator uses the non-saturating loss $L_G=-\mathbb{E}\log D(G(z,c),c)$, and the discriminator's
+target for real samples is smoothed to $0.9$~\cite{salimans2016}.
+
+\paragraph{WGAN-GP objective.} The critic is trained to minimise
+\begin{equation}
+L_D=\mathbb{E}\big[D(\tilde{x},c)\big]-\mathbb{E}\big[D(x,c)\big]+\lambda\,\mathbb{E}_{\hat{x}}\Big[\big(\lVert\nabla_{\hat{x}}D(\hat{x},c)\rVert_2-1\big)^2\Big],
+\end{equation}
+with $\hat{x}=\epsilon x+(1-\epsilon)\tilde{x}$, $\epsilon\sim U(0,1)$ and $\lambda=10$~\cite{gulrajani2017}, five critic
+updates per generator update, and $L_G=-\mathbb{E}\,D(G(z,c),c)$.
+
+\paragraph{Training details.} Features are standardised with the mean and standard deviation of the GAN's training
+set and clipped to $\pm 6$ standard deviations. Optimisation uses Adam~\cite{kingma2015}: learning rate $2\cdot10^{-4}$,
+$\beta=(0.5,0.999)$ for BCE, and $10^{-4}$, $\beta=(0.5,0.9)$ for WGAN-GP; batch size 64; 2000 generator iterations for
+BCE and 1000 for WGAN-GP. Generated vectors are mapped back to the original scale and clipped to the per-feature
+minimum and maximum seen in training. The GAN is trained on \emph{all} classes jointly, conditionally, using only the
+training portion of the data of a given experiment. For augmentation, each class with fewer examples than a target
+count is topped up with samples drawn from $G(z,c_y)$ (Algorithm~\ref{alg:aug}).
+
+\begin{algorithm}[H]
+\caption{Conditional-GAN augmentation of rare error classes}
+\label{alg:aug}
+\begin{algorithmic}[1]
+\Require Labelled training features $\{(x_i,y_i)\}$, target size $N$ per class, iterations $T$
+\Ensure Augmented training set $\mathcal{D}'$
+\State Fit a standardiser on $\{x_i\}$ and transform all vectors
+\State Initialise $G$, $D$; set $\mathcal{D}'\gets\{(x_i,y_i)\}$
+\For{$t=1$ \textbf{to} $T$}
+    \State Sample a mini-batch $(x,y)$ and noise $z$; compute $\tilde{x}=G(z,c_y)$
+    \State Update $D$ (BCE with smoothed targets, or critic with gradient penalty)
+    \State Update $G$ with the corresponding generator loss
+\EndFor
+\For{each class $k$ with $n_k<N$ real examples}
+    \State Draw $N-n_k$ vectors $\tilde{x}=G(z,c_k)$; invert the standardisation; clip to the training range
+    \State Add them to $\mathcal{D}'$ with label $k$
+\EndFor
+\State \Return $\mathcal{D}'$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Classifiers and Baselines}
+
+Four standard classifiers are trained on feature vectors: a random forest~\cite{breiman2001} with 300 trees, a
+multilayer perceptron (two hidden layers of 128 and 64 units, standardised inputs), multinomial logistic regression, and a
+histogram-based gradient-boosting classifier, all from scikit-learn~\cite{pedregosa2011}. Two rule-based baselines use
+only the compiler's diagnostics and no learning:
+
+\begin{itemize}
+    \item \textbf{First error}: predict the family of the first reported error (what a developer reading the output
+    top to bottom would conclude); predict \emph{logic} if there is no error but a logic warning, \emph{valid} otherwise.
+    \item \textbf{Most severe}: predict the family of highest root-cause priority among all reported errors, with the same
+    fall-backs.
+\end{itemize}
+
+The second baseline is a strong one: it has access to the labelling rule itself. Any advantage of the learned
+classifiers over it therefore comes from cases that the rule cannot express.
+
+\subsection{GAN-Based Anomaly Scoring}
+
+For anomaly detection the GAN is trained on valid programs only, with a single class. A program is scored by the
+negated discriminator logit (BCE) or negated critic value (WGAN-GP): the less ``real'' the discriminator finds the
+program's feature vector, the more anomalous it is. This is a cheaper relative of AnoGAN~\cite{schlegl2017}, which would
+additionally search the generator's latent space for a reconstruction. It is compared with Isolation Forest
+\cite{liu2008} and a one-class SVM~\cite{scholkopf2001} trained on the same valid programs, and with the binary signal
+``the compiler reported at least one error'', evaluated by AUROC~\cite{fawcett2006}.
+
+\subsection{Integrated Algorithm}
+
+\begin{algorithm}[H]
+\caption{End-to-end processing of a MedScript program}
+\label{alg:pipeline}
+\begin{algorithmic}[1]
+\Require Source text $S$, trained classifier $C$
+\Ensure Diagnostics, optimised IR (if error-free), root-cause estimate
+\State $(\mathit{tokens},\mathit{D}_{\text{lex}})\gets\textsc{Tokenize}(S)$
+\State $(\mathit{AST},\mathit{D}_{\text{syn}})\gets\textsc{Parse}(\mathit{tokens})$
+\If{$\mathit{D}_{\text{syn}}=\emptyset$}
+    \State $\mathit{D}_{\text{sem}}\gets\textsc{Analyse}(\mathit{AST})$ \Comment{types, units, ranges, taint, optionals, flow}
+\EndIf
+\State $\mathit{D}\gets\mathit{D}_{\text{lex}}\cup\mathit{D}_{\text{syn}}\cup\mathit{D}_{\text{sem}}$, sorted by position
+\State $v\gets\textsc{Features}(\mathit{tokens},\mathit{AST},\mathit{D})$
+\State $\hat{y}\gets C(v)$
+\If{$\mathit{D}$ contains no error}
+    \State $\mathit{IR}\gets\textsc{Lower}(\mathit{AST})$; $\mathit{IR}'\gets\textsc{Optimise}(\mathit{IR})$
+\EndIf
+\State \Return $(\mathit{D},\mathit{IR}',\hat{y})$
+\end{algorithmic}
+\end{algorithm}
+
+\newpage

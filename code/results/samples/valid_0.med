@@ -1,0 +1,24 @@
+// nightly batch check
+input wt: kg range(1, 200);
+input hr: bpm range(10, 220);
+input patient_id: string phi;
+
+const MAX_DOSE: mg = 500 mg;
+
+func weight_dose(mass: kg, r: mg/kg) -> mg {
+    let dose: mg = r * mass;
+    if (dose > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return dose;
+}
+
+let dose: mg = weight_dose(wt, 20 mg/kg);
+print(dose);
+export(anonymize(patient_id));
+if (hr > 100 bpm) {
+    print("ALERT tachycardia");
+}
+if (hr < 55 bpm) {
+    print("ALERT bradycardia");
+}

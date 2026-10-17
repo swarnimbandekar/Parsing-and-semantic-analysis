@@ -1,0 +1,40 @@
+// nightly batch check
+input weight_lb: lb range(5, 700);
+input height: metre range(0.5, 2.3);
+input temperature: degC range(30, 42);
+input sbp: mmHg range(40, 300);
+
+const MAX_DOSE: mg = 1500 mg;
+
+func calc_bmi(w: kg, h: metre) -> kg/metre^2 {
+    return w / (h * h);
+}
+
+func dose_for(mass: kg, r: mg/kg) -> mg {
+    let dose: mg = r * mass;
+    if (dose > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return dose;
+}
+
+let weight_kg: kg = lb_to_kg(weight_lb);
+print(weight_kg);
+if (sbp < 90 mmHg) {
+    print("ALERT hypotension");
+}
+if (sbp > 140 mmHg) {
+    print("ALERT hypertension");
+}
+let bmi = calc_bmi(weight_kg, height)
+if (bmi > 35 kg/metre^2) {
+    print("ALERT obesity");
+}
+if (temperature > 38.5 degC) {
+    print("ALERT fever");
+}
+let dose: mg = dose_for(weight_kg, 10 mg/kg);
+print(dose);
+if (dose > 400 mg) {
+    print("ALERT high_dose");
+}

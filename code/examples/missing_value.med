@@ -1,0 +1,10 @@
+// A laboratory value that may be missing is used without a presence check
+input glucose: mg/ml? range(0, 20);
+input weight: kg range(2, 300);
+
+func glucose_dose(w: kg, g: mg/ml) -> mg {
+    return w * 0.5 mg/kg + g * 10 ml;
+}
+
+let dose: mg = glucose_dose(weight, glucose);
+print(dose);

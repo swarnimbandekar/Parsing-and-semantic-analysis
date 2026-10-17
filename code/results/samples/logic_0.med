@@ -1,0 +1,50 @@
+// triage rules for the admission unit
+input wt: kg range(2, 250);
+input temperature: degC range(32, 41);
+input pulse: bpm range(10, 250);
+input sbp: mmHg range(50, 300);
+input glucose: mg/ml? range(0, 15);
+input bag_ml: ml range(10, 5000);
+input dur: hour range(0, 24);
+
+const MAX_DOSE: mg = 800 mg;
+const limit: mg = 3 * 250 mg;
+
+func dose_for(w: kg, rate: mg/kg) -> mg {
+    let d: mg = rate * w;
+    if (d > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return d;
+}
+
+func severity(t: degC, h: bpm) -> int {
+    if (t > 38.5 degC) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+let dose: mg = dose_for(wt, 10 mg/kg);
+print(dose);
+let shock_index = pulse / sbp;
+if (shock_index < 1.0 bpm/mmHg) {
+    print("ALERT shock");
+}
+if (dur > 0 hour) {
+    let flow: ml/hour = bag_ml / dur;
+    print(flow);
+}
+if (temperature > 38.0 degC) {
+    print("ALERT fever");
+}
+if (present(glucose) && glucose > 1.8 mg/ml) {
+    print("ALERT hyperglycemia");
+}
+let margin: mg = limit - 100 mg;
+print(margin);
+let sev = severity(temperature, pulse);
+if (sev >= 1) {
+    print("ALERT escalate");
+}

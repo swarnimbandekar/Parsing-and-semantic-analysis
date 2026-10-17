@@ -1,0 +1,141 @@
+% ============================================================
+% EXPERIMENTAL SETUP
+% ============================================================
+\section{Experimental Setup}
+
+\subsection{Dataset Preparation}
+
+No public corpus of faulty medical-data programs exists, and real clinical scripts could not be shared even if
+it did. The corpus was therefore generated, in two steps: a generator that writes \emph{valid} MedScript programs,
+and a set of mutation operators that turn a valid program into a faulty one.
+
+\paragraph{Valid programs.} The generator assembles a program from three to seven building blocks drawn at random
+from sixteen: weight-based dosing with a cap, body-mass index, temperature, heart-rate and blood-pressure alerts, shock
+index, a combined sepsis rule, infusion rate, an optional laboratory value (in three different guarding styles),
+PHI handling, a scoring loop, pound-to-kilogram conversion, a severity function, constant arithmetic, and two
+\emph{hard negatives}. The hard negatives are constructs that look like faults but are correct: a division by a
+variable whose range includes zero but that is guarded by a positive test, and a threshold equal to the upper bound of
+the declared range. Variable names, thresholds, ranges, the choice of comments and the order of blocks are
+randomised. Every generated program is required to compile without errors; in a separate check, 1{,}500 generated
+programs compiled with no error and no warning at all.
+
+\paragraph{Fault injection.} Forty-six operators, between three and seven per family (Appendix~C), edit the text of a valid
+program. Examples: deleting a semicolon (syntax), swapping the unit of a literal from \code{degC} to \code{mmHg}
+(unit), printing a PHI input directly (phi), removing a \code{present} guard (missing),
+inverting a comparison in an alert rule (logic). After the edit the program is compiled, and it is kept only if the
+fault \emph{manifests}, i.e., the compiler reports a diagnostic of the intended family. The exception is the two
+\emph{soft} logic operators (inverting a rule, or giving it the alert text of the opposite kind), whose faults
+by construction produce no diagnostic; they are kept without that test. In about 20\% of attempts a second fault of
+lower priority is injected \emph{before} the primary one, so that the final program contains two defects but has a
+single, well-defined label.
+
+\paragraph{Resulting corpus.} The corpus contains \NProg{} unique programs, 1{,}000 in each of the ten classes, with a
+mean length of \MeanLoc{} lines (\TotalLoc{} lines in total). Of the 9{,}000 faulty programs, \NDouble{}
+(\DoubleShare\%) contain two faults. A fixed stratified split sets aside 200 programs per class as the \emph{test set}
+(\NTest{} programs, never used for training, for fitting the GAN or for choosing hyper-parameters); the remaining
+800 per class form the \emph{training pool} from which every experiment samples. Table~\ref{tab:dataset} summarises
+the composition.
+
+\begin{table}[H]
+\centering
+\caption{Corpus composition.}
+\label{tab:dataset}
+\small
+\begin{tabular}{llrrr}
+\toprule
+\textbf{Id} & \textbf{Class} & \textbf{Operators} & \textbf{Training pool} & \textbf{Test}\\
+\midrule
+0 & valid & --- & 800 & 200\\
+1 & lexical & 3 & 800 & 200\\
+2 & syntax & 6 & 800 & 200\\
+3 & name & 6 & 800 & 200\\
+4 & type & 6 & 800 & 200\\
+5 & unit & 6 & 800 & 200\\
+6 & range & 4 & 800 & 200\\
+7 & phi & 5 & 800 & 200\\
+8 & missing & 3 & 800 & 200\\
+9 & logic & 7 & 800 & 200\\
+\midrule
+ & Total & 46 & 8{,}000 & 2{,}000\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{System Requirements}
+
+All experiments ran on a single laptop, without a GPU. The networks are small multilayer perceptrons and the
+feature vectors are 101-dimensional, so CPU training is sufficient.
+
+\begin{table}[H]
+\centering
+\caption{Hardware and software used for the experiments.}
+\label{tab:sysreq}
+\begin{tabular}{ll}
+\toprule
+\textbf{Component} & \textbf{Specification}\\
+\midrule
+Processor & Intel Core i5-13420H (8 cores, 12 threads)\\
+RAM & 16 GB\\
+Operating system & Windows 11 Home\\
+Programming language & Python 3.13\\
+Machine learning & scikit-learn 1.9, PyTorch 2.14 (CPU), NumPy 2.5, SciPy 1.18\\
+Plotting & Matplotlib 3.11\\
+Typesetting & MiKTeX 25.12 (pdfLaTeX)\\
+Parallelism & joblib, 10 worker processes\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Experimental Protocol}
+
+Five experiments were run; all random choices are seeded.
+
+\paragraph{E1. Rule-based baselines versus learned classifiers.} The four classifiers are trained on all
+8{,}000 training-pool programs and evaluated on the 2{,}000 test programs, next to the two rule baselines.
+
+\paragraph{E2. Feature views and learning curves.} A random forest is trained on four feature subsets
+(token+AST, diagnostics, diagnostics+patterns, all features) with $n\in\{5,10,25,50,100,200,800\}$ programs per class,
+five random draws each.
+
+\paragraph{E3. Augmentation under scarcity.} This is the experiment that tests the GAN. The \emph{valid} class has
+400 real training programs; each of the nine faulty classes has only $n\in\{5,10,20,50,100\}$ real programs. Seven
+training regimes are compared: (1) no augmentation; (2) class-balanced weights in the forest; (3) random oversampling;
+(4) Gaussian jitter oversampling (copies perturbed by noise of 10\% of the feature standard deviation); (5) SMOTE
+\cite{chawla2002} with $k=5$; (6) conditional GAN with the BCE objective; (7) conditional GAN with WGAN-GP. In (3)--(7)
+each faulty class is brought up to 400 training vectors. Every configuration is repeated for ten seeds that change
+the sampled real programs, the network initialisation and all random draws, and each result is evaluated on the same
+2{,}000-program test set with a random forest and an MLP. For one seed at $n=20$ we additionally measure the fidelity of
+the synthetic vectors (Section~5.4).
+
+\paragraph{E4. GAN as anomaly detector.} GANs are trained on the 800 valid training programs only; Isolation Forest and a
+one-class SVM are trained on the same data. Each detector scores the 200 valid test programs and the 200 test programs
+of each faulty class; we report AUROC.
+
+\paragraph{E5. Compiler performance.} Synthetic valid programs of increasing size are compiled five times each and the
+median per-phase wall-clock time is recorded. Separately, 300 generated valid programs are compiled, optimised and
+checked for behavioural equivalence on ten random inputs each.
+
+\subsection{Evaluation Metrics}
+
+For class $k$ let $\mathrm{TP}_k$, $\mathrm{FP}_k$, $\mathrm{FN}_k$ be the true positives, false positives and false
+negatives. Then
+\begin{align}
+P_k&=\frac{\mathrm{TP}_k}{\mathrm{TP}_k+\mathrm{FP}_k},\qquad
+R_k=\frac{\mathrm{TP}_k}{\mathrm{TP}_k+\mathrm{FN}_k},\\
+F1_k&=\frac{2P_kR_k}{P_k+R_k},\qquad
+\text{macro-}F1=\frac1{10}\sum_{k=0}^{9}F1_k,
+\end{align}
+and accuracy is the fraction of correctly classified programs \cite{sokolova2009}. Because the test set is balanced,
+accuracy and macro-F1 are close. The AUROC of a detector is the probability that a randomly chosen faulty program
+receives a higher anomaly score than a randomly chosen valid one~\cite{fawcett2006}. Compilation time is
+\begin{equation}
+T_c=T_{\text{lex}}+T_{\text{parse}}+T_{\text{sem}}+T_{\text{IR}}+T_{\text{opt}},
+\end{equation}
+and the optimisation gain in code size is
+\begin{equation}
+G=\frac{N_{\text{original}}-N_{\text{optimised}}}{N_{\text{original}}}\times 100,
+\end{equation}
+where $N$ is the number of three-address instructions. Differences between methods in E3 are tested with a paired
+$t$-test over the ten seeds (the same seed implies the same real programs and the same test set).
+
+\newpage

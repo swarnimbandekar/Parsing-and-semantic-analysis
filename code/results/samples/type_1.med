@@ -1,0 +1,49 @@
+input temperature: degC range(32, 44);
+input pulse: bpm range(30, 250);
+input bp_sys: mmHg range(40, 260);
+input gluc: mg/ml? range(0, 20);
+input volume: ml range(50, 3000);
+input run_hours: hour range(1, 12);
+
+const limit: mg = 3 * 200 mg;
+
+func severity(t: degC, h: bpm) -> int {
+    if (t > 38.5 degC) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+if (bp_sys < 100 mmHg) {
+    print("ALERT hypotension");
+}
+if (bp_sys > 160 mmHg) {
+    print("ALERT hypertension");
+}
+if (temperature > 38.5 degC) {
+    print("ALERT fever");
+}
+if (temperature < 36.0 degC) {
+    print("ALERT hypothermia");
+}
+if (!present(gluc)) {
+    print("lab missing");
+} else {
+    if (gluc < 0.5 mg/ml) {
+        print("ALERT hypoglycemia");
+    }
+}
+if (pulse > 120 bpm) {
+    print("ALERT tachycardia");
+}
+let sev = severity(temperature, pulse, 1);
+if (sev >= 1) {
+    print("ALERT escalate");
+}
+let margin: mg = limit - 50 mg;
+print(margin);
+let rate: ml/hour = volume / run_hours;
+if (rate > 250 ml/hour) {
+    print("ALERT high_rate");
+}

@@ -1,0 +1,38 @@
+// ward screening routine
+input patient_weight: kg range(3, 250);
+input body_height: metre range(0.3, 2.4);
+input pulse: bpm range(30, 280);
+input bp_sys: mmHg range(40, 300);
+input glucose: mg/ml? range(0, 25);
+input bag_ml: ml range(50, 5000);
+input run_hours: hour range(0.5, 24);
+input pname: string phi;
+
+func calc_bmi(w: kg, h: metre) -> kg/metre^2 {
+    return w / (h * h);
+}
+
+let shock_index = pulse / bp_sys;
+if (shock_index > 1.0 bpm/mmHg) {
+    print("ALERT shock");
+}
+let bmi = calc_bmi(patient_weight, body_height);
+if (bmi > 30 kg/metre^2) {
+    print("ALERT obesity");
+}
+if (bmi < 17 kg/metre^2) {
+    print("ALERT underweight");
+}
+let rate: ml/hour = bag_ml / run_hours;
+print(pname);
+if (rate > 150 ml/hour) {
+    print("ALERT high_rate");
+}
+export(anonymize(pname));
+if (!present(glucose)) {
+    print("lab missing");
+} else {
+    if (glucose < 0.4 mg/ml) {
+        print("ALERT hypoglycemia");
+    }
+}

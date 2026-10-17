@@ -1,0 +1,21 @@
+// triage rules for the admission unit
+input temperature: degC range(28, 41);
+input hr: bpm range(30, 250);
+input systolic: mmHg range(30, 240);
+
+let shock_index = hr / systolic;
+if (shock_index > 0.9 bpm/mmHg) {
+    print("ALERT shock");
+}
+if (hr > 250 bpm) {
+    print("ALERT tachycardia");
+}
+if (hr > 100 bpm && temperature > 38.0 degC) {
+    print("ALERT sepsis_risk");
+}
+if (temperature > 38.0 degC) {
+    print("ALERT fever");
+}
+if (temperature <) {
+    print("ALERT hypothermia");
+}

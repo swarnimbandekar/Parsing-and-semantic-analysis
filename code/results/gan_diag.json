@@ -1,0 +1,144 @@
+{
+ "runs": [
+  {
+   "seed": 0,
+   "balanced": false,
+   "loss": "bce",
+   "validity": 0.022514619883040935,
+   "f1": 0.9488823359739069
+  },
+  {
+   "seed": 0,
+   "balanced": false,
+   "loss": "wgan-gp",
+   "validity": 0.04269005847953217,
+   "f1": 0.9446146508227977
+  },
+  {
+   "seed": 0,
+   "balanced": true,
+   "loss": "bce",
+   "validity": 0.10146198830409357,
+   "f1": 0.9485421263298826
+  },
+  {
+   "seed": 0,
+   "balanced": true,
+   "loss": "wgan-gp",
+   "validity": 0.11491228070175438,
+   "f1": 0.9209597208778686
+  },
+  {
+   "seed": 1,
+   "balanced": false,
+   "loss": "bce",
+   "validity": 0.013742690058479532,
+   "f1": 0.9504719488450606
+  },
+  {
+   "seed": 1,
+   "balanced": false,
+   "loss": "wgan-gp",
+   "validity": 0.04912280701754386,
+   "f1": 0.9486468194910186
+  },
+  {
+   "seed": 1,
+   "balanced": true,
+   "loss": "bce",
+   "validity": 0.09502923976608187,
+   "f1": 0.9445335218528091
+  },
+  {
+   "seed": 1,
+   "balanced": true,
+   "loss": "wgan-gp",
+   "validity": 0.1324561403508772,
+   "f1": 0.9455268034933555
+  },
+  {
+   "seed": 2,
+   "balanced": false,
+   "loss": "bce",
+   "validity": 0.06842105263157895,
+   "f1": 0.9231324121436947
+  },
+  {
+   "seed": 2,
+   "balanced": false,
+   "loss": "wgan-gp",
+   "validity": 0.041812865497076024,
+   "f1": 0.9282342500143329
+  },
+  {
+   "seed": 2,
+   "balanced": true,
+   "loss": "bce",
+   "validity": 0.12280701754385964,
+   "f1": 0.9256268922732522
+  },
+  {
+   "seed": 2,
+   "balanced": true,
+   "loss": "wgan-gp",
+   "validity": 0.1371345029239766,
+   "f1": 0.9261164609627741
+  },
+  {
+   "seed": 3,
+   "balanced": false,
+   "loss": "bce",
+   "validity": 0.026608187134502925,
+   "f1": 0.952630276126022
+  },
+  {
+   "seed": 3,
+   "balanced": false,
+   "loss": "wgan-gp",
+   "validity": 0.05058479532163743,
+   "f1": 0.9476944873024816
+  },
+  {
+   "seed": 3,
+   "balanced": true,
+   "loss": "bce",
+   "validity": 0.10964912280701754,
+   "f1": 0.9501312074807491
+  },
+  {
+   "seed": 3,
+   "balanced": true,
+   "loss": "wgan-gp",
+   "validity": 0.13099415204678364,
+   "f1": 0.9399776036557534
+  },
+  {
+   "seed": 4,
+   "balanced": false,
+   "loss": "bce",
+   "validity": 0.06549707602339182,
+   "f1": 0.9453379299784379
+  },
+  {
+   "seed": 4,
+   "balanced": false,
+   "loss": "wgan-gp",
+   "validity": 0.038304093567251465,
+   "f1": 0.9494272926482056
+  },
+  {
+   "seed": 4,
+   "balanced": true,
+   "loss": "bce",
+   "validity": 0.1195906432748538,
+   "f1": 0.9468280974590959
+  },
+  {
+   "seed": 4,
+   "balanced": true,
+   "loss": "wgan-gp",
+   "validity": 0.1154970760233918,
+   "f1": 0.9433370751452115
+  }
+ ]
+}

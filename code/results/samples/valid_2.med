@@ -1,0 +1,43 @@
+input wt: kg range(2, 150);
+input temperature: degC range(32, 43);
+input pulse: bpm range(20, 280);
+
+const MAX_DOSE: mg = 2000 mg;
+
+func weight_dose(w: kg, rate: mg/kg) -> mg {
+    let d: mg = rate * w;
+    if (d > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return d;
+}
+
+func severity(t: degC, h: bpm) -> int {
+    if (t > 38.0 degC) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+let score = 0;
+let i = 0;
+while (i < 3) {
+    score = score + i * 1;
+    i = i + 1;
+}
+if (score > 5) {
+    print("ALERT review");
+}
+if (pulse > 120 bpm) {
+    print("ALERT tachycardia");
+}
+if (pulse < 50 bpm) {
+    print("ALERT bradycardia");
+}
+let dose: mg = weight_dose(wt, 10 mg/kg);
+print(dose);
+let sev = severity(temperature, pulse);
+if (sev >= 2) {
+    print("ALERT escalate");
+}

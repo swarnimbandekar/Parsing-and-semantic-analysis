@@ -1,0 +1,8 @@
+// Two syntax faults: a missing semicolon and an unbalanced parenthesis
+input temp: degC range(30, 43);
+input hr: bpm range(20, 250);
+
+let fever = temp > 38.0 degC
+if (fever && hr > 100 bpm {
+    print("ALERT sepsis_risk");
+}

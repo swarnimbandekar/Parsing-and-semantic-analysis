@@ -1,0 +1,30 @@
+// derived indicators and alerts
+input body_temp: degC range(30, 43);
+input heart_rate: bpm range(30, 280);
+input glucose: mg/ml? range(0, 20);
+input pname: string phi;
+
+
+func build_msg(s: string) -> string {
+    return "note: " + s;
+}
+if (heart_rate > 110 bpm) {
+    print("ALERT tachycardia");
+}
+if (heart_rate < 40 bpm) {
+    print("ALERT bradycardia");
+}
+if (heart_rate > 100 bpm && body_temp > 37.8 degC) {
+    print("ALERT sepsis_risk");
+}
+print(build_msg(pname));
+if (heart_rate > 280 bpm) {
+    print("ALERT tachycardia");
+}
+if (!present(glucose)) {
+    print("lab missing");
+} else {
+    if (glucose < 0.5 mg/ml) {
+        print("ALERT hypoglycemia");
+    }
+}

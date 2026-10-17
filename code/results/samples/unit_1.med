@@ -1,0 +1,35 @@
+input body_temp: degC range(32, 43);
+input pulse: bpm range(20, 280);
+input bp_sys: mmHg range(30, 300);
+input bag_ml: ml range(100, 3000);
+input patient_id: string phi;
+input dur: hour range(0, 24);
+
+func severity(t: degC, h: bpm) -> int {
+    if (t > 38.0 degC) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+export(anonymize(patient_id));
+let sev = severity(body_temp, pulse);
+let adj78: ml = bag_ml + 5 mg;
+print(adj78);
+if (sev >= 1) {
+    print("ALERT escalate");
+}
+if (pulse > 280 bpm) {
+    print("ALERT tachycardia");
+}
+if (bp_sys < 90 mmHg) {
+    print("ALERT hypotension");
+}
+if (dur > 0 hour) {
+    let flow: ml/hour = bag_ml / dur;
+    print(flow);
+}
+if (body_temp > 38.0 degC) {
+    print("ALERT fever");
+}

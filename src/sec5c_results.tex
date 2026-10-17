@@ -1,0 +1,134 @@
+% ============================================================
+% RESULTS (part C): compiler performance, case studies, validity
+% ============================================================
+\subsection{Compiler Performance and Optimisation (E5)}
+
+\paragraph{Scaling.} Table~\ref{tab:scaling} and Figure~\ref{fig:scaling} show the median compilation time for valid
+programs of 46 to 12{,}016 lines (up to 88{,}000 tokens). A linear fit of total time against program size gives
+\MsPerKloc{} ms per thousand lines ($R^2=\ScaleRSq$), so a 40-line program---the size of the corpus programs---compiles in
+a few milliseconds. The log--log slope over the larger sizes is \ScaleSlope, i.e., growth is slightly worse than linear, and the
+table shows where: the semantic phase, which takes roughly a quarter of the time for programs up to about 800 lines, accounts for more
+than half of the total (53\%) at 12{,}000 lines. The reason is a known inefficiency of our implementation: every \code{if} copies the flow state
+(the sets of assigned variables and facts), which grows with the number of top-level declarations, so a long flat program
+pays a cost proportional to its size at every branch. Sharing the sets structurally between branches would remove this; at
+the sizes of real clinical scripts it does not matter.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.62\textwidth]{figs/scaling.pdf}
+\caption{Median compilation time per phase against program size (log--log).}
+\label{fig:scaling}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Median time per phase in milliseconds, and IR size before and after optimisation.}
+\label{tab:scaling}
+\small
+\resizebox{\textwidth}{!}{\input{tables/scaling.tex}}
+\end{table}
+
+\paragraph{Optimisation.} Over 300 generated valid programs the optimiser removed on average \OptMean\% of the
+three-address instructions (maximum \OptMax\%). On every one of them, running the original and the optimised code on ten
+random inputs produced identical output events (\OptMismatch{} mismatches in \OptPrograms{} programs). The generated programs
+are written the way a person would write them and contain little redundancy, so the gain is modest. Programs with constant
+arithmetic show more. For the program in Listing~\ref{lst:fold}, the optimiser folds the two constants, shares the repeated
+product \code{per\_kg * weight}, and deletes the dead branch, reducing 18 instructions to 11 (39\%).
+
+\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize,caption={Three-address code of \texttt{examples/fold\_demo.med} before (left column of rows) and after optimisation.},label={lst:fold}]
+ before                            |  after
+ t1 = 2 * 400.0                    |  LIMIT = 800.0
+ LIMIT = t1                        |  margin@1 = 750.0
+ t2 = LIMIT - 50.0                 |  t3 = 12.0 * weight
+ margin@1 = t2                     |  a@3 = t3
+ per_kg@2 = 12.0                   |  b@4 = t3          (CSE)
+ t3 = per_kg@2 * weight            |  goto L1           (dead branch)
+ a@3 = t3                          |  L1:
+ t4 = per_kg@2 * weight            |  t7 = a@3 + b@4
+ b@4 = t4                          |  t8 = t7 + margin@1
+ t5 = 1 > 2                        |  param t8
+ ifFalse t5 goto L1                |  t9 = call print, 1
+ param 'never printed'             |
+ t6 = call print, 1                |
+ L1:                               |
+ t7 = a@3 + b@4                    |
+ t8 = t7 + margin@1                |
+ param t8                          |
+ t9 = call print, 1                |
+\end{lstlisting}
+
+The listing also shows two limits of the optimiser. A jump to the immediately following label is left behind (no peephole
+pass), and propagation stops at labels, so \code{margin@1} is not substituted into \code{t8}. Both are
+straightforward extensions and neither affects correctness.
+
+\subsection{Worked Examples}
+
+The command-line tool prints the compiler's diagnostics and, below them, the classifier's estimate of the root-cause family.
+Listing~\ref{lst:phi} shows a program with four independent faults: PHI concatenated into output, a temperature
+threshold with the decimal point dropped (reported twice, once by the range-of-input check and once by the plausibility check), and
+a dose added to a weight. The classifier ranks \emph{phi} first, in agreement with the root-cause priority.
+
+\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\scriptsize,caption={Output of \texttt{medcheck.py examples/phi\_leak.med}.},label={lst:phi}]
+== examples/phi_leak.med: 100 tokens, 4 error(s), 0 warning(s)
+  12:19: error DOM002: protected health information reaches print() without anonymize()
+      | print("patient: " + patient_name);
+  13:10: error DOM001: comparison against 380, outside the declared range [30, 43] of 'temp'
+      | if (temp > 380 degC) {
+  13:12: error DOM001: value 380 degC is outside the plausible range [20.0, 45.0] degC
+      | if (temp > 380 degC) {
+  16:12: error SEM005: unit mismatch: [mg] + [kg]
+      | print(dose + weight);
+== learned root-cause estimate: phi 0.80, range 0.11, lexical 0.06
+\end{lstlisting}
+
+Listing~\ref{lst:syn} shows recovery from two syntax faults. The missing semicolon is reported at the end of the line
+where it belongs, not at the \code{if} that exposed it, and parsing continues, so the missing parenthesis on the next line is also
+found. Because syntax errors were reported, the semantic phase did not run.
+
+\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\scriptsize,caption={Output of \texttt{medcheck.py examples/syntax\_errors.med}.},label={lst:syn}]
+== examples/syntax_errors.med: 44 tokens, 2 error(s), 0 warning(s)
+  5:25: error SYN001: expected ';' but found 'if'
+      | let fever = temp > 38.0 degC
+  6:23: error SYN001: expected ')' but found '{'
+      | if (fever && hr > 100 bpm {
+== learned root-cause estimate: syntax 0.99, lexical 0.01, valid 0.00
+\end{lstlisting}
+
+The most interesting case is the one in which the compiler has nothing to say. In the file
+\texttt{examples/\allowbreak inverted\_\allowbreak rule.med} the fever rule reads \code{if (temp < 38.0 degC)} and prints an alert called \emph{fever}. It compiles without a single
+diagnostic. The tool then adds the line produced by the classifier, shown in Listing~\ref{lst:inv}: the forest assigns the program
+to \emph{logic} with probability 0.77 and flags that the rule-based front end found nothing. This is a probability estimate from
+a model trained on synthetic faults, not a proof, and the tool says so by wording it as a suspicion.
+
+\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\scriptsize,caption={Output of \texttt{medcheck.py examples/inverted\_rule.med}.},label={lst:inv}]
+== examples/inverted_rule.med: 50 tokens, 0 error(s), 0 warning(s)
+== learned root-cause estimate: logic 0.77, valid 0.20, name 0.02
+   note: the rule-based front end found no error, but the classifier suspects a 'logic'
+         fault (possible clinical-logic error)
+\end{lstlisting}
+
+\subsection{Threats to Validity and Limitations}
+
+We want to be explicit about what these results do and do not establish.
+
+\begin{itemize}
+    \item \textbf{Synthetic corpus, in-distribution test.} Training and test programs come from the same generator, built from
+    the same sixteen blocks and mutated by the same operators. The near-perfect accuracy therefore measures how well the
+    classifier has learned \emph{this} generator's faults. It says little about hand-written MedScript programs, and nothing at all
+    about real clinical code in other languages. A study on real faulty scripts would be the real test.
+    \item \textbf{The labels are defined by the injection.} A program's label is whatever fault we injected (with a documented priority
+    for two faults). We checked that each fault manifests in the compiler, but not that a human reviewer would call it the root
+    cause.
+    \item \textbf{The strong rule baseline shares the labelling rule.} The ``most severe family'' rule is, by construction, the
+    labelling rule applied to diagnostics. Its 100\% accuracy on the semantic families is therefore partly circular; its failures
+    (cascading lexical faults, invisible logic faults) are the informative part.
+    \item \textbf{The soft-fault detector uses a hand-written vocabulary.} The pattern features rely on a list of alert words. A
+    program that names its alerts differently would defeat them. The classifier learns a statistical regularity of the generated
+    programs, not clinical knowledge.
+    \item \textbf{Scope of the experiment grid.} The range of scarcity levels in the GAN experiment was widened after a preliminary run on a
+    separate, smaller corpus (different random seed), in which the GAN showed no advantage at five to twenty examples per class.
+    Hyper-parameters of all methods were fixed beforehand and not tuned on the test set; they were also not tuned at all, so a
+    better-tuned GAN could do better than reported.
+    \item \textbf{Language and tooling.} MedScript is a small DSL, implemented in Python for clarity rather than speed.
+\end{itemize}
+

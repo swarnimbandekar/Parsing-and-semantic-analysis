@@ -1,0 +1,48 @@
+// generated clinical rule set
+input wt_lb: lb range(5, 700);
+input temp: degC range(28, 43);
+input hr: bpm range(10, 250);
+
+const MAX_DOSE: mg = 1500 mg;
+
+func severity(t: degC, h: bpm) -> int {
+    if (t > 39.5 degC) {
+        return 3;
+    }
+    else if (h > 130 bpm) {
+        return 2;
+    }
+    return 0;
+}
+
+func weight_dose(w: kg, rate: mg/kg) -> mg {
+    let d: mg = rate * w;
+    if (d > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return d;
+}
+
+let weight_kg: kg = lb_to_kg(wt_lb);
+print(weight_kg);
+let sev = severity(temp, hr);
+if (sev >= 1) {
+    print("ALERT escalate");
+}
+let dose_mg: mg = weight_dose(weight_kg, 5 mg/kg);
+print(dose_mg);
+let score = 0;
+let i = 0;
+while (i < 5) {
+    score = score + i * 2;
+    i = i + 1;
+}
+if (score > 8) {
+    print("ALERT review");
+}
+if (temp > 38.3 degC) {
+    print("ALERT fever");
+}
+if (temp < 36.0 degC) {
+    print("ALERT hypothermia");
+}

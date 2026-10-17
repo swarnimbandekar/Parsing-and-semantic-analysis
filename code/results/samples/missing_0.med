@@ -1,0 +1,58 @@
+input wt: kg range(1, 400);
+input height: metre range(0.4, 2.2);
+input heart_rate: bpm range(10, 250);
+input sbp: mmHg range(30, 300);
+input glucose: mg/ml? range(0, 20);
+input volume: ml? range(50, 5000);
+input duration: hour range(1, 12);
+
+const MAX_DOSE: mg = 500 mg;
+
+func bmi_of(w: kg, h: metre) -> kg/metre^2 {
+    return w / (h * h);
+}
+
+func dose_for(mass: kg, r: mg/kg) -> mg {
+    let dose: mg = r * mass;
+    if (dose > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return dose;
+}
+
+let rate: ml/hour = volume / duration;
+if (rate > 300 ml/hour) {
+    print("ALERT high_rate");
+}
+if (!present(glucose)) {
+    print("lab missing");
+} else {
+    if (glucose < 0.5 mg/ml) {
+        print("ALERT hypoglycemia");
+    }
+}
+if (sbp < 100 mmHg) {
+    print("ALERT hypotension");
+}
+let bmi = bmi_of(wt, height);
+if (bmi > 35 kg/metre^2) {
+    print("ALERT obesity");
+}
+let dose: mg = dose_for(wt, 12.5 mg/kg);
+print(dose);
+if (dose > 300 mg) {
+    print("ALERT high_dose");
+}
+let score = 0;
+let i = 0;
+while (i < 5) {
+    score = score + i * 2;
+    i = i + 1;
+}
+if (score > 3) {
+    print("ALERT review");
+}
+let shock_index = heart_rate / sbp;
+if (shock_index > 1.0 bpm/mmHg) {
+    print("ALERT shock");
+}

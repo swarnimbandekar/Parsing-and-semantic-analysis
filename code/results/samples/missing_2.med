@@ -1,0 +1,56 @@
+// bedside monitor post-processing
+input weight_lb: lb range(2, 700);
+input ht: metre range(0.3, 2.2);
+input body_temp: degC range(30, 42);
+input hr: bpm range(30, 220);
+input sbp: mmHg range(50, 300);
+input glucose: mg/ml? range(0, 20);
+input fluid_volume: ml range(50, 3000);
+input dur: hour range(0, 24);
+
+func severity(t: degC, h: bpm) -> int {
+    if (t > 39.5 degC) {
+        return 3;
+    }
+    else if (h > 120 bpm) {
+        return 2;
+    }
+    return 0;
+}
+
+func bmi_of(w: kg, h: metre) -> kg/metre^2 {
+    return w / (h * h);
+}
+
+let weight_kg: kg = lb_to_kg(weight_lb);
+print(weight_kg);
+if (present(glucose) && glucose > 1.2 mg/ml) {
+    print("ALERT hyperglycemia");
+}
+let sev = severity(body_temp, hr);
+if (sev >= 2) {
+    print("ALERT escalate");
+}
+let bmi = bmi_of(weight_kg, ht);
+if (bmi > 40 kg/metre^2) {
+    print("ALERT obesity");
+}
+if (dur > 0 hour) {
+    let flow: ml/hour = fluid_volume / dur;
+    print(flow);
+}
+let shock_index = hr / sbp;
+let scaled4 = glucose * 3;
+print(scaled4);
+if (shock_index > 1.2 bpm/mmHg) {
+    print("ALERT shock");
+}
+let score = 0;
+let i = 0;
+while (i < 5) {
+    score = score + i * 1;
+    i = i + 1;
+}
+if (score > 8) {
+    print("ALERT review");
+}

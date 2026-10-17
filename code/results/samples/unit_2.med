@@ -1,0 +1,34 @@
+// generated clinical rule set
+input body_temp: degC range(32, 43);
+input pulse: bpm range(30, 220);
+input systolic: mmHg range(30, 260);
+input glucose: mg/ml? range(0, 20);
+
+func severity(t: degC, h: bpm) -> int {
+    if (t > 38.5 degC) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+if (systolic < 80 mmHg) {
+    print("ALERT hypotension");
+}
+let sev = severity(body_temp, pulse);
+if (sev >= 2) {
+    print("ALERT escalate");
+}
+if (present(glucose)) {
+    if (glucose > 1.8 mg/ml) {
+        print("ALERT hyperglycemia");
+    }
+}
+let adj64: degC = body_temp + 2 mmHg;
+print(adj64);
+if (body_temp > 38.5 degC) {
+    print("ALERT fever");
+}
+if (body_temp < 35.0 degC) {
+    print("ALERT hypothermia");
+}

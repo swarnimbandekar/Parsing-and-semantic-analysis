@@ -1,0 +1,15 @@
+\subsection{Summary of Findings}
+
+\begin{enumerate}
+    \item A purpose-built front end with clinical semantics detects, with 100\% recall, the faults it was designed for, and the learned classifier
+    adds value mainly where the rules are blind (soft logic faults) or ambiguous (cascades, multiple faults): \RuleFirstAcc\% and \RulePrioAcc\% for the two rule baselines against
+    \RFAcc\% for the forest.
+    \item The information that matters is computed by the compiler. Token and tree statistics alone reach a macro-F1 of 0.44 with 800 programs per class.
+    \item Conditional GANs trained on the feature vectors did \emph{not} improve classification with scarce data. Gaussian jitter and SMOTE were better, and
+    the GAN's synthetic vectors were mostly not recognisable as the class they were meant to represent.
+    \item A GAN discriminator trained on valid programs detects soft logic faults well (AUROC about 0.98), but its performance on other families is
+    trivially explained by the diagnostic features, and the WGAN-GP critic was unusable for this purpose.
+    \item The compiler is fast enough for interactive use (\MsPerKloc{} ms per thousand lines) and its optimiser preserved behaviour on all tested programs.
+\end{enumerate}
+
+\newpage

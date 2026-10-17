@@ -1,0 +1,42 @@
+// ward screening routine
+input temperature: degC range(30, 43);
+input hr: bpm range(10, 280);
+input sbp: mmHg range(40, 300);
+input gluc: mg/ml? range(0, 25);
+input record_id: string phi;
+
+const limit: mg = 2 * 200 mg;
+
+func severity(t: degC, h: bpm) -> int {
+    if (t > 38.5 degC) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+if (!present(gluc)) {
+    print("lab missing");
+} else {
+    if (gluc < 0.5 mg/ml) {
+        print("ALERT hypoglycemia");
+    }
+}
+let shock_index = hr / sbp;
+if (shock_index > 0.9 bpm/mmHg) {
+    print("ALERT shock");
+}
+let margin: mg = true;
+print(margin);
+let sev = severity(temperature, hr);
+if (sev >= 2) {
+    print("ALERT escalate");
+}
+if (hr > 100 bpm && temperature > 37.8 degC) {
+    print("ALERT sepsis_risk");
+}
+if (hr > 110 bpm) {
+    print("ALERT tachycardia");
+}
+let masked = anonymize(record_id);
+print(masked);

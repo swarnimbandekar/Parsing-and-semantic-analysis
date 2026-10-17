@@ -1,0 +1,118 @@
+% ============================================================
+% INTRODUCTION
+% ============================================================
+\section{Introduction}
+
+Programs that handle medical data sit in an unusual place in the software landscape.
+They are usually small and unglamorous---a script that flags abnormal vital signs, a routine that converts a
+body weight into a drug dose, a nightly job that exports records to a research registry---yet a mistake in any
+of them can reach a patient. Two accidents are often quoted to show how little it takes. The Therac-25 radiation
+overdoses of the mid-1980s were traced to defects in control software \cite{leveson1993}, and the Mars Climate
+Orbiter was lost in 1999 because one team produced impulse data in pound-force seconds while the consuming
+software expected newton seconds \cite{mco1999}. The second failure is, in compiler terms, a plain type error
+that the type system of the day simply could not see: both quantities were just \code{double}.
+
+Clinical code has the same weak spot. A dose in milligrams added to a weight in kilograms, a temperature
+threshold typed as \code{380} instead of \code{38.0}, a blood-glucose reading that may be missing from the
+laboratory feed but is used as if it were always present, or a patient name that reaches a log file without
+being anonymised: each of these is syntactically fine and passes through a general-purpose compiler without a
+word. The relevant knowledge---units, physiological ranges, privacy rules---lives in the heads of the people who
+write the program, not in the language they write it in.
+
+This project builds a small compiler front end that \emph{does} know about that domain, and then asks a
+machine-learning question on top of it: once a program has been rejected (or, worse, accepted), can a learned
+model tell us what kind of mistake it contains, even when the compiler's own diagnostics are incomplete or
+misleading? The generative adversarial network (GAN) enters the picture for a practical reason. Labelled
+examples of faulty medical programs are scarce, and they are awkward to share because real clinical scripts tend
+to embed identifiers and institutional rules. A conditional GAN that learns the distribution of compiler-derived
+feature vectors per error class offers a way to produce additional training records without handing over any
+source code. Whether that actually helps is an empirical question, and we report the answer as we measured it,
+including the places where it did not help.
+
+\subsection{Motivation}
+
+Three observations motivated the work.
+
+\begin{enumerate}
+    \item \textbf{General compilers are blind to domain constraints.} Mainstream languages check that an
+    expression is a number, not that it is a mass. Units-of-measure systems exist
+    \cite{kennedy1994} but are not part of the languages most clinical scripting is done in.
+    \item \textbf{Rule-based diagnostics are precise but narrow.} A hand-written analyser reports exactly what it
+    was told to look for. It says nothing about an inverted fever rule such as
+    \code{if (temp < 38.0 degC)} followed by an alert called ``fever'', because nothing in the grammar or the
+    type system is violated. Cascading faults make things worse: when several defects coexist, the first message
+    is not necessarily the root cause.
+    \item \textbf{Labelled data is the bottleneck.} Learning-based bug finders depend on large corpora
+    \cite{allamanis2018,pradel2018}. In a regulated domain the corpus of real faulty programs is small, and
+    synthetic augmentation is attractive if it can be shown to work.
+\end{enumerate}
+
+The course context also shaped the design. The assignment asks for a compiler component---here parsing and
+semantic analysis---and a machine-learning component---here error classification---applied to a concrete
+domain, which for us is healthcare. We therefore treated the compiler as the primary artefact and the learned
+model as a second stage that consumes what the compiler produces.
+
+\subsection{Problem Statement}
+
+The problem addressed in this report is:
+
+\begin{quote}
+\textit{Given the source text of a medical data-processing program, how can we (i) detect domain-specific
+errors---unit, range, privacy and missing-value errors in addition to ordinary lexical, syntactic and type
+errors---with a purpose-built compiler front end, and (ii) assign each defective program to its root-cause error
+family with a learned classifier that is trained on compiler-derived features, using a generative adversarial
+network to compensate for the scarcity of labelled faulty programs?}
+\end{quote}
+
+\subsection{Objectives}
+
+\begin{enumerate}
+    \item To design \emph{MedScript}, a small imperative language for medical data processing with first-class
+    units of measure, protected-health-information (PHI) tagging, optional (possibly missing) values and
+    declared physiological ranges.
+    \item To implement a complete front end for it: a hand-written lexer, a recursive-descent parser with error
+    recovery, and a semantic analyser that performs type, unit, range, taint, missing-value, definite-assignment
+    and division-by-zero checks.
+    \item To implement the back end far enough to demonstrate the compiler pipeline end to end: three-address
+    code, constant folding, constant propagation, common-subexpression elimination, dead-code elimination, and a
+    reference virtual machine used to check that optimisation preserves behaviour.
+    \item To define a taxonomy of ten classes (valid plus nine error families), build a labelled corpus of valid and fault-injected
+    programs, and train classifiers on features extracted from the compiler's tokens, syntax tree and
+    diagnostics.
+    \item To train conditional GANs on those features and measure honestly whether the synthetic records improve
+    classification when real faulty examples are scarce, and whether a GAN trained only on valid programs can
+    serve as an anomaly detector.
+    \item To measure the compiler itself: scaling of compilation time with program size and the effect of
+    optimisation on code size.
+\end{enumerate}
+
+\subsection{Contributions}
+
+The main contributions of this report are:
+
+\begin{itemize}
+    \item \textbf{MedScript and its compiler.} A domain-specific language and a Python implementation (about
+    1{,}900 lines for the compiler proper, about 4{,}900 including corpus tools, learning code, experiments and tests)
+    of lexer, parser, semantic analyser, IR generator, optimiser and virtual machine, with a command-line tool that also reports a learned root-cause estimate. A suite of 38 unit tests accompanies it.
+    \item \textbf{Semantic analysis that encodes clinical safety rules.} Unit checking through exponent vectors
+    over base units, interval reasoning over declared ranges, taint tracking from \code{phi} inputs to output
+    sinks, and flow-sensitive refinement of optional values.
+    \item \textbf{A fault-injection corpus.} \NProg{} programs in ten classes, produced by 46 mutation operators
+    with a check that each injected fault actually manifests, including \DoubleShare\% multi-fault programs among
+    the faulty ones.
+    \item \textbf{A comparison of rule-based and learned error classification.} The learned classifiers reach
+    \RFAcc\% accuracy against \RuleFirstAcc\% for the ``first diagnostic'' rule, and they also catch faults the
+    compiler cannot see, which neither rule baseline does.
+    \item \textbf{An honest evaluation of GAN augmentation.} Seven training regimes are compared over ten
+    random seeds at five levels of data scarcity, together with fidelity measurements of the synthetic records
+    and a GAN-based anomaly detector. The GAN turns out not to help, and the report says why.
+\end{itemize}
+
+\subsection{Organisation of the Report}
+
+Section~2 reviews related work. Section~3 describes the language, the compiler phases and the machine-learning
+components. Section~4 describes the corpus, the experimental protocol and the software environment. Section~5
+presents and discusses results. Section~6 concludes and outlines future work. The appendices contain the full
+grammar, the diagnostic catalogue, the fault operators and a short guide to running the code.
+
+\newpage

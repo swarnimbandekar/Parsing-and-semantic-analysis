@@ -1,0 +1,106 @@
+{
+ "n_constant_features_in_valid": 49,
+ "n_features": 101,
+ "constant_by_group": {
+  "pat": 3,
+  "ast": 1,
+  "tok": 5,
+  "diag": 40
+ },
+ "runs": [
+  {
+   "seed": 0,
+   "cols": "all",
+   "logic": 0.9773750000000001,
+   "all faults": 0.9974861111111111
+  },
+  {
+   "seed": 0,
+   "cols": "no_pat",
+   "logic": 0.8530249999999999,
+   "all faults": 0.9836694444444445
+  },
+  {
+   "seed": 0,
+   "cols": "pat_only",
+   "logic": 0.6858749999999999,
+   "all faults": 0.5670486111111112
+  },
+  {
+   "seed": 1,
+   "cols": "all",
+   "logic": 0.9666999999999999,
+   "all faults": 0.9902916666666667
+  },
+  {
+   "seed": 1,
+   "cols": "no_pat",
+   "logic": 0.836775,
+   "all faults": 0.9818638888888889
+  },
+  {
+   "seed": 1,
+   "cols": "pat_only",
+   "logic": 0.595475,
+   "all faults": 0.5017791666666667
+  },
+  {
+   "seed": 2,
+   "cols": "all",
+   "logic": 0.9866,
+   "all faults": 0.9985111111111111
+  },
+  {
+   "seed": 2,
+   "cols": "no_pat",
+   "logic": 0.837375,
+   "all faults": 0.9818944444444446
+  },
+  {
+   "seed": 2,
+   "cols": "pat_only",
+   "logic": 0.6088000000000001,
+   "all faults": 0.4989874999999999
+  },
+  {
+   "seed": 3,
+   "cols": "all",
+   "logic": 0.9719,
+   "all faults": 0.9964500000000001
+  },
+  {
+   "seed": 3,
+   "cols": "no_pat",
+   "logic": 0.8246,
+   "all faults": 0.9805111111111111
+  },
+  {
+   "seed": 3,
+   "cols": "pat_only",
+   "logic": 0.59775,
+   "all faults": 0.5130152777777778
+  },
+  {
+   "seed": 4,
+   "cols": "all",
+   "logic": 0.9852,
+   "all faults": 0.9983555555555556
+  },
+  {
+   "seed": 4,
+   "cols": "no_pat",
+   "logic": 0.869375,
+   "all faults": 0.9840138888888889
+  },
+  {
+   "seed": 4,
+   "cols": "pat_only",
+   "logic": 0.6121500000000001,
+   "all faults": 0.5237097222222222
+  }
+ ],
+ "isolation_forest": {
+  "all_features_all_faults": 0.47310972222222225,
+  "only_varying_features_all_faults": 0.47525833333333334
+ }
+}

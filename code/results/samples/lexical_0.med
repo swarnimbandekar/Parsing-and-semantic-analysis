@@ -1,0 +1,53 @@
+// ward screening routine
+input body_temp: degC range(25, 41);
+input hr: bpm range(10, 220);
+input systolic: mmHg range(40, 260);
+input bag_ml: ml range(50, 3000);
+input duration: hour range(0.5, 12);
+input record_id: string phi;
+
+func severity(t: degC, h: bpm) -> int {
+    if (t > 38.0 degC) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+if (body_temp > 38.5 degC) {
+    print("ALERT fever");
+}
+if (body_temp < 35.0 degC) {
+    print("ALERT hypothermia");
+}
+let score = 0;
+let i = 0;
+while (i < 4) {
+    score = score + i * 1;
+    i = i + 1;
+}
+if (score > 5) {
+    print("ALERT review");
+}
+if (systolic < 90 mmHg) {
+    print("ALERT hypotension");
+}
+if (systolic > 180 mmHg) {
+    print("ALERT hypertension");
+}
+let rate: ml/hour = bag_ml / duration;
+if (rate > 250 ml/hour) {
+    print("ALERT high_rate");
+}
+let sev = severity(body_temp, hr);
+if (sev >= 1) {
+    print("ALERT escalate");
+}
+if (hr > 100 bpm) {
+    print("ALERT tachycardia);
+}
+if (hr < 50 bpm) {
+    print("ALERT bradycardia");
+}
+print("record processed");
+export(anonymize(record_id));

@@ -1,0 +1,24 @@
+// nightly batch check
+input body_weight: kg range(0.5, 150);
+input blood_sugar: mg/ml? range(0, 15);
+input full_name: string phi;
+
+const MAX_DOSE: mg = 1000 mg;
+
+func weight_dose(wt: kg, mgkg: mg/kg) -> mg {
+    let amount: mg = mgkg * wt;
+    if (amount > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return amount;
+}
+
+if (present(blood_sugar) && blood_sugar > 2.5 mg/ml) {
+    print("ALERT hyperglycemia");
+}
+export(anonymize(full_name));
+let rx: mg = weight_dose(body_weight, 5 mg/kg);
+print(rxx);
+if (rx > 400 mg) {
+    print("ALERT high_dose");
+}

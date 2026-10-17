@@ -1,0 +1,10 @@
+// Compiles cleanly, but the fever rule is inverted (clinical logic error)
+input temp: degC range(30, 43);
+input hr: bpm range(20, 250);
+
+if (temp < 38.0 degC) {
+    print("ALERT fever");
+}
+if (hr > 100 bpm) {
+    print("ALERT tachycardia");
+}

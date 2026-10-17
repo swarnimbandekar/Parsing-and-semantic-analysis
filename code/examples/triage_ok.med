@@ -1,0 +1,41 @@
+// Vital-sign triage with weight-based dosing (valid program)
+input patient_name: string phi;
+input weight: kg range(2, 300);
+input height: metre range(0.4, 2.3);
+input temp: degC range(30, 43);
+input hr: bpm range(20, 250);
+input lactate: mg? range(0, 400);
+
+const MAX_DOSE: mg = 1000 mg;
+
+func dose_for(w: kg, rate: mg/kg) -> mg {
+    let d: mg = rate * w;
+    if (d > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return d;
+}
+
+func bmi(w: kg, h: metre) -> kg/metre^2 {
+    return w / (h * h);
+}
+
+let dose: mg = dose_for(weight, 15 mg/kg);
+let index = bmi(weight, height);
+let fever = false;
+
+if (temp > 38.0 degC) {
+    fever = true;
+    print("fever alert");
+}
+if (hr > 100 bpm && fever) {
+    print("sepsis screen");
+}
+if (present(lactate)) {
+    if (lactate > 200 mg) {
+        print("high lactate");
+    }
+}
+export(anonymize(patient_name));
+print(dose);
+print(index);

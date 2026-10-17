@@ -1,0 +1,25 @@
+input wt: kg range(2, 300);
+input temperature: degC range(25, 42);
+input hr: bpm range(20, 250);
+input bag_ml: ml range(50, 3000);
+input dur: hour range(0, 24);
+
+const MAX_DOSE: mg = 500 mg;
+
+func calc_dose(w: kg, rate: mg/kg) -> mg {
+    let d: mg = rate * w;
+    if (d > MAX_DOSE) {
+        return MAX_DOSE;
+    }
+    return d;
+}
+
+if (hr > 110 bpm && temperature > 37.8 degC) {
+    print("ALERT sepsis_risk);
+}
+if (dur > 0 hour) {
+    let flow: ml/hour = bag_ml / dur;
+    print(flow);
+}
+let dose_mg: mg = calc_dose(wt, 20 mg/kg);
+print(dose_mg);

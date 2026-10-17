@@ -1,0 +1,26 @@
+// generated clinical rule set
+input weight: kg range(0.5, 200);
+input ht: metre range(0.3, 2.3);
+input body_temp: degC range(25, 43);
+input pulse: bpm range(10, 220);
+input sbp: mmHg range(50, 300);
+input record_id: string phi;
+
+func bmi_of(w: kg, h: metre) -> kg/metre^2 {
+    return w / (h * h);
+    print("done");
+}
+
+let bmi = bmi_of(weight, ht);
+if (bmi > 40 kg/metre^2) {
+    print("ALERT obesity");
+}
+let shock_index = pulse / sbp;
+if (shock_index > 1.2 bpm/mmHg) {
+    print("ALERT shock");
+}
+if (body_temp > 38.0 degC) {
+    print("ALERT fever");
+}
+let masked = anonymize(record_id);
+print(masked);

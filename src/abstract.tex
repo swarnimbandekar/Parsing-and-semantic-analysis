@@ -1,0 +1,32 @@
+% ============================================================
+% ABSTRACT
+% ============================================================
+\section*{Abstract}
+
+Programs that process medical data can contain mistakes that a general-purpose compiler never reports: a dose added to a
+body weight, a temperature threshold typed ten times too large, a laboratory value that may be missing but is used
+unguarded, or a patient name that reaches a log file. This report describes a compiler front end built to catch such
+errors, and a learned classifier that sits on top of it and names the root-cause family of each defective program.
+
+The front end is written for MedScript, a small domain-specific language that we designed with units of measure in its types,
+declared physiological ranges, protected-health-information tagging and optional values. It consists of a hand-written lexer,
+a recursive-descent parser with error recovery, and a semantic analyser that checks types and units, interval-based range
+plausibility, taint flow of patient identifiers, presence of optional values, definite assignment and division by zero. A
+three-address-code generator, a six-pass optimiser and a virtual machine complete the pipeline. On a synthetic corpus of
+\NProg{} programs in ten classes (valid, plus nine error families injected by 46 mutation operators), the learned
+classifiers, which use features computed by the compiler, reach \RFAcc\% accuracy, against \RuleFirstAcc\% for taking the family of the first
+diagnostic. They also catch faults the compiler cannot see, such as an inverted fever rule, which a rule-based reading of its diagnostics misses.
+
+A conditional generative adversarial network was trained on the feature vectors to supply synthetic examples of rare error classes.
+In ten-seed experiments with 5 to 100 real examples per class, it did not help: Gaussian jitter and SMOTE performed better, and only
+about 4\% of the GAN's samples were recognisable as the requested class. A GAN discriminator trained on valid programs only did
+detect the compiler-invisible faults well (AUROC 0.98), although its results on other fault families are largely explained by the diagnostic features.
+The compiler processes about \MsPerKloc{} ms per thousand lines, and its optimiser preserved program behaviour in all tested cases.
+The corpus is synthetic and the results should be read accordingly.
+
+\vspace{0.4em}
+\textbf{Keywords:}
+Compiler Design, Semantic Analysis, Parsing, Units of Measure, Error Classification, Generative Adversarial Network,
+Healthcare Software.
+
+\newpage
