@@ -60,7 +60,7 @@
 % ============================================================
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{Compiler Design Lab -- CSE3024}
+\fancyhead[L]{Compiler Design Lab (CSE3024)}
 \fancyhead[R]{VIT-AP University}
 \fancyfoot[C]{\thepage}
 \setlength{\headheight}{14.5pt}
@@ -272,238 +272,98 @@ Healthcare Software.
 % ============================================================
 \section{Introduction}
 
-Programs that handle medical data sit in an unusual place in the software landscape.
-They are usually small and unglamorous---a script that flags abnormal vital signs, a routine that converts a
-body weight into a drug dose, a nightly job that exports records to a research registry---yet a mistake in any
-of them can reach a patient. Two accidents are often quoted to show how little it takes. The Therac-25 radiation
-overdoses of the mid-1980s were traced to defects in control software \cite{leveson1993}, and the Mars Climate
-Orbiter was lost in 1999 because one team produced impulse data in pound-force seconds while the consuming
-software expected newton seconds \cite{mco1999}. The second failure is, in compiler terms, a plain type error
-that the type system of the day simply could not see: both quantities were just \code{double}.
+Programs that handle medical data are usually small and unglamorous: a script that flags abnormal vital signs, a
+routine that turns a body weight into a drug dose, a nightly job that exports records to a research registry. A
+mistake in any of them can still reach a patient. The Therac-25 overdoses were traced to defects in control
+software \cite{leveson1993}, and the Mars Climate Orbiter was lost because one team produced impulse data in
+pound-force seconds while the consuming software expected newton seconds \cite{mco1999}. In compiler terms the second
+failure is a plain type error that the type system could not see, because both quantities were just \code{double}.
 
-Clinical code has the same weak spot. A dose in milligrams added to a weight in kilograms, a temperature
-threshold typed as \code{380} instead of \code{38.0}, a blood-glucose reading that may be missing from the
-laboratory feed but is used as if it were always present, or a patient name that reaches a log file without
-being anonymised: each of these is syntactically fine and passes through a general-purpose compiler without a
-word. The relevant knowledge---units, physiological ranges, privacy rules---lives in the heads of the people who
-write the program, not in the language they write it in.
+Clinical code has the same weak spot. A dose in milligrams added to a weight in kilograms, a fever threshold typed as
+\code{380} instead of \code{38.0}, a lab value that may be missing but is used as if it were always present, or a
+patient name written to a log: all of these are syntactically fine and pass through a general-purpose compiler without
+a word. The knowledge needed to catch them (units, physiological ranges, privacy rules) lives in the programmer's
+head, not in the language.
 
-This project builds a small compiler front end that \emph{does} know about that domain, and then asks a
-machine-learning question on top of it: once a program has been rejected (or, worse, accepted), can a learned
-model tell us what kind of mistake it contains, even when the compiler's own diagnostics are incomplete or
-misleading? The generative adversarial network (GAN) enters the picture for a practical reason. Labelled
-examples of faulty medical programs are scarce, and they are awkward to share because real clinical scripts tend
-to embed identifiers and institutional rules. A conditional GAN that learns the distribution of compiler-derived
-feature vectors per error class offers a way to produce additional training records without handing over any
-source code. Whether that actually helps is an empirical question, and we report the answer as we measured it,
-including the places where it did not help.
+This project builds a compiler front end that does know about that domain, and then asks a machine-learning question
+on top of it: can a learned model tell us what kind of mistake a program contains, even when the compiler's own
+diagnostics are incomplete or misleading? The GAN comes in for a practical reason. Labelled examples of faulty
+medical programs are scarce and hard to share, so a conditional GAN that learns compiler-derived feature vectors per
+error class could supply extra training records without exposing any source code. Whether that actually helps is an
+empirical question, and we report what we measured, including where it did not help.
 
-\subsection{Motivation}
+\subsection{Motivation and Problem Statement}
 
-Three observations motivated the work.
+Three observations drove the work. First, mainstream compilers check that an expression is a number, not that it is
+a mass; units-of-measure systems exist \cite{kennedy1994} but not in the languages clinical scripts are written in.
+Second, rule-based diagnostics are precise but narrow. Nothing in the grammar or the type system is violated by
+\code{if (temp < 38.0 degC)} followed by an alert called ``fever'', and when several faults coexist the first message
+is often not the root cause. Third, learned bug finders need large corpora \cite{allamanis2018,pradel2018}, which a
+regulated domain does not have.
 
-\begin{enumerate}
-    \item \textbf{General compilers are blind to domain constraints.} Mainstream languages check that an
-    expression is a number, not that it is a mass. Units-of-measure systems exist
-    \cite{kennedy1994} but are not part of the languages most clinical scripting is done in.
-    \item \textbf{Rule-based diagnostics are precise but narrow.} A hand-written analyser reports exactly what it
-    was told to look for. It says nothing about an inverted fever rule such as
-    \code{if (temp < 38.0 degC)} followed by an alert called ``fever'', because nothing in the grammar or the
-    type system is violated. Cascading faults make things worse: when several defects coexist, the first message
-    is not necessarily the root cause.
-    \item \textbf{Labelled data is the bottleneck.} Learning-based bug finders depend on large corpora
-    \cite{allamanis2018,pradel2018}. In a regulated domain the corpus of real faulty programs is small, and
-    synthetic augmentation is attractive if it can be shown to work.
-\end{enumerate}
+The problem we address is therefore: given the source of a medical data-processing program, (i) detect lexical,
+syntactic, type, unit, range, privacy and missing-value errors with a purpose-built front end, and (ii) assign each
+defective program to its root-cause error family with a classifier trained on compiler-derived features, using a GAN
+to make up for the shortage of labelled faulty programs.
 
-The course context also shaped the design. The assignment asks for a compiler component---here parsing and
-semantic analysis---and a machine-learning component---here error classification---applied to a concrete
-domain, which for us is healthcare. We therefore treated the compiler as the primary artefact and the learned
-model as a second stage that consumes what the compiler produces.
-
-\subsection{Problem Statement}
-
-The problem addressed in this report is:
-
-\begin{quote}
-\textit{Given the source text of a medical data-processing program, how can we (i) detect domain-specific
-errors---unit, range, privacy and missing-value errors in addition to ordinary lexical, syntactic and type
-errors---with a purpose-built compiler front end, and (ii) assign each defective program to its root-cause error
-family with a learned classifier that is trained on compiler-derived features, using a generative adversarial
-network to compensate for the scarcity of labelled faulty programs?}
-\end{quote}
-
-\subsection{Objectives}
-
-\begin{enumerate}
-    \item To design \emph{MedScript}, a small imperative language for medical data processing with first-class
-    units of measure, protected-health-information (PHI) tagging, optional (possibly missing) values and
-    declared physiological ranges.
-    \item To implement a complete front end for it: a hand-written lexer, a recursive-descent parser with error
-    recovery, and a semantic analyser that performs type, unit, range, taint, missing-value, definite-assignment
-    and division-by-zero checks.
-    \item To implement the back end far enough to demonstrate the compiler pipeline end to end: three-address
-    code, constant folding, constant propagation, common-subexpression elimination, dead-code elimination, and a
-    reference virtual machine used to check that optimisation preserves behaviour.
-    \item To define a taxonomy of ten classes (valid plus nine error families), build a labelled corpus of valid and fault-injected
-    programs, and train classifiers on features extracted from the compiler's tokens, syntax tree and
-    diagnostics.
-    \item To train conditional GANs on those features and measure honestly whether the synthetic records improve
-    classification when real faulty examples are scarce, and whether a GAN trained only on valid programs can
-    serve as an anomaly detector.
-    \item To measure the compiler itself: scaling of compilation time with program size and the effect of
-    optimisation on code size.
-\end{enumerate}
-
-\subsection{Contributions}
-
-The main contributions of this report are:
+\subsection{Objectives and Contributions}
 
 \begin{itemize}
-    \item \textbf{MedScript and its compiler.} A domain-specific language and a Python implementation (about
-    1{,}900 lines for the compiler proper, about 4{,}900 including corpus tools, learning code, experiments and tests)
-    of lexer, parser, semantic analyser, IR generator, optimiser and virtual machine, with a command-line tool that also reports a learned root-cause estimate. A suite of 38 unit tests accompanies it.
-    \item \textbf{Semantic analysis that encodes clinical safety rules.} Unit checking through exponent vectors
-    over base units, interval reasoning over declared ranges, taint tracking from \code{phi} inputs to output
-    sinks, and flow-sensitive refinement of optional values.
-    \item \textbf{A fault-injection corpus.} \NProg{} programs in ten classes, produced by 46 mutation operators
-    with a check that each injected fault actually manifests, including \DoubleShare\% multi-fault programs among
-    the faulty ones.
-    \item \textbf{A comparison of rule-based and learned error classification.} The learned classifiers reach
-    \RFAcc\% accuracy against \RuleFirstAcc\% for the ``first diagnostic'' rule, and they also catch faults the
-    compiler cannot see, which neither rule baseline does.
-    \item \textbf{An honest evaluation of GAN augmentation.} Seven training regimes are compared over ten
-    random seeds at five levels of data scarcity, together with fidelity measurements of the synthetic records
-    and a GAN-based anomaly detector. The GAN turns out not to help, and the report says why.
+    \item \textbf{MedScript and its compiler.} A small language with units in its types, PHI tagging, optional values
+    and declared physiological ranges, plus a Python implementation (about 1{,}900 lines for the compiler, 4{,}900
+    with corpus tools, learning code and tests) of lexer, parser with error recovery, semantic analyser, three-address
+    code, a six-pass optimiser and a virtual machine. 38 unit tests accompany it.
+    \item \textbf{Clinical safety rules as semantic checks.} Unit checking with exponent vectors, interval reasoning over
+    declared ranges, taint tracking from \code{phi} inputs to output sinks, and flow-sensitive handling of optional values.
+    \item \textbf{A fault-injection corpus} of \NProg{} programs in ten classes, produced by 46 mutation operators, with
+    \DoubleShare\% of the faulty programs containing two faults.
+    \item \textbf{Rule-based versus learned classification.} The learned classifiers reach \RFAcc\% accuracy against
+    \RuleFirstAcc\% for reading the first diagnostic, and they catch faults the compiler cannot see.
+    \item \textbf{A measured evaluation of GAN augmentation} over ten seeds and five levels of data scarcity, against
+    simple resampling, plus a GAN-based anomaly detector. The GAN did not help classification, and we show why.
 \end{itemize}
 
-\subsection{Organisation of the Report}
-
-Section~2 reviews related work. Section~3 describes the language, the compiler phases and the machine-learning
-components. Section~4 describes the corpus, the experimental protocol and the software environment. Section~5
-presents and discusses results. Section~6 concludes and outlines future work. The appendices contain the full
-grammar, the diagnostic catalogue, the fault operators and a short guide to running the code.
-
-\newpage
+Section~2 reviews related work, Section~3 describes the language, compiler and learning components, Section~4 the
+corpus and protocol, Section~5 the results, and Section~6 concludes.
 
 % ============================================================
 % RELATED WORK
 % ============================================================
 \section{Related Work}
 
-The project touches four bodies of work: classical compiler front ends, static analyses for domain-specific
-properties such as units and information flow, machine learning for program defects, and generative models and
-resampling for imbalanced data. This section summarises each and then states where our work sits.
+\paragraph{Compiler front ends.} Lexing, parsing and semantic analysis follow Aho et al.~\cite{aho2006} and Cooper and
+Torczon~\cite{cooper2007}. We use two ideas from that literature. One is error recovery: our recursive-descent parser
+inserts a missing closing token where it can and otherwise skips to the next statement boundary, a mix of the local
+repair and panic-mode schemes described by Burke and Fisher~\cite{burke1987} and Grune and Jacobs~\cite{grune2008}. The
+other is phase gating: semantic analysis only runs on input the parser accepted. Section~5 shows this has a measurable
+effect on programs with several faults. The flow-sensitive parts of our analyser are instances of the data-flow
+framework of Nielson et al.~\cite{nielson1999}.
 
-\subsection{Classical Compiler Front Ends}
+\paragraph{Units and information flow.} Kennedy's dimension types~\cite{kennedy1994} give each numeric type a unit
+written as a product of base units with integer powers. Multiplication adds exponents, division subtracts them, and
+addition requires them to match. That single rule would have caught both the Mars Climate Orbiter error and the
+dose-plus-weight mistake, and it is what we use. Taint analysis tracks data from sources to sinks; TaintDroid
+\cite{enck2010} does it at run time on smartphones. We use a static variant in which \code{phi} inputs are tainted and
+only \code{anonymize()} clears the taint, motivated by the HIPAA Privacy Rule~\cite{hipaa}.
 
-The standard treatment of lexical analysis, parsing and semantic analysis is that of Aho et
-al.~\cite{aho2006}; Cooper and Torczon~\cite{cooper2007} and Appel~\cite{appel1998} cover the same ground with
-more attention to implementation. Two ideas from that literature are used directly in this project. The first is
-\emph{error recovery}. A compiler that stops at the first syntax error is unpleasant to use, so parsers
-resynchronise: they either skip tokens until a safe point (panic mode) or repair the input locally by inserting
-or deleting a token. Burke and Fisher~\cite{burke1987} give a systematic method for LR and LL parsers, and Grune
-and Jacobs~\cite{grune2008} survey the alternatives. Our recursive-descent parser combines both: a missing
-semicolon or parenthesis is reported and treated as if it had been present, and any other malformed construct is
-skipped up to the next statement boundary. The second idea is \emph{phase gating}: later phases are only run on
-an input that earlier phases accepted, because a semantic analysis of a tree built from broken syntax produces
-noise. We follow this convention, which, as Section~5 shows, has a measurable effect on what the compiler can
-tell about programs that contain several faults.
+\paragraph{Learning for program defects.} Allamanis et al.~\cite{allamanis2018} survey statistical models of code.
+DeepFix~\cite{gupta2017} repairs syntax and type errors in student C programs, and DeepBugs~\cite{pradel2018} learns
+name-based detectors for bugs such as swapped arguments, close in spirit to our inverted-comparison faults. These
+systems learn from tokens or graphs of general-purpose code. We go lighter: the model sees what the compiler already
+computed (diagnostic counts, structural statistics, a few clinical-rule patterns), so it stays small and its inputs
+stay readable.
 
-Type checking itself is covered by Pierce~\cite{pierce2002}. The flow-sensitive parts of our semantic
-analyser---definite assignment, and the refinement of optional values inside a guarded branch---are instances of
-the data-flow framework presented by Nielson et al.~\cite{nielson1999}.
-
-\subsection{Units of Measure and Information-Flow Analysis}
-
-Kennedy's \emph{dimension types}~\cite{kennedy1994} extend a type system so that numeric types carry a unit
-expressed as a product of base units raised to integer powers. Multiplication adds exponents, division subtracts
-them, and addition requires equal exponents. This is precisely the rule that would have caught the Mars Climate
-Orbiter error and the dose-plus-weight mistake mentioned in the introduction, and it is the formulation used here.
-
-Taint analysis tracks data from \emph{sources} to \emph{sinks}. TaintDroid~\cite{enck2010} applies it dynamically
-to detect private data leaving a smartphone. We use a simple static variant: values read from inputs marked
-\code{phi} are tainted, taint propagates through arithmetic, string concatenation and user functions, and it is
-cleared only by an explicit \code{anonymize()} call. Reaching \code{print} or \code{export} with a tainted value is
-an error. The motivation is regulatory rather than technical: the HIPAA Privacy Rule restricts the disclosure of
-individually identifiable health information and describes de-identification procedures~\cite{hipaa}.
-
-\subsection{Machine Learning for Program Defects}
-
-Allamanis et al.~\cite{allamanis2018} survey the use of statistical models of source code, building on the
-observation that real programs are repetitive and predictable~\cite{hindle2012}. DeepFix~\cite{gupta2017} trains a
-sequence-to-sequence network to repair common syntax and type errors in student C programs. DeepBugs~\cite{pradel2018}
-learns from name-based features to flag bugs such as swapped arguments and wrong binary operators---close in
-spirit to the inverted-comparison faults we study. Graph neural networks over syntax and data-flow edges have
-also been used to detect variable misuse~\cite{allamanis2018graphs}. These systems work on general-purpose code and
-operate on tokens or graphs. We take a different, lighter route: the learned model sees \emph{what the compiler
-already computed}---counts of each diagnostic, structural statistics, and a few clinical-rule patterns---which
-keeps the model small, makes its inputs inspectable, and lets it use the compiler as a feature extractor rather than
-re-learning grammar.
-
-\subsection{GANs, Augmentation and Imbalanced Learning}
-
-A generative adversarial network trains a generator $G$ and a discriminator $D$ in a two-player game
-\cite{goodfellow2014}; the conditional variant feeds a class label to both networks so that samples can be drawn for a
-chosen class~\cite{mirza2014}. Training can be unstable, and a large part of the subsequent literature addresses
-that: label smoothing and related heuristics~\cite{salimans2016}, the Wasserstein objective~\cite{arjovsky2017} and
-its gradient-penalty form~\cite{gulrajani2017}. In healthcare, medGAN~\cite{choi2017} generates synthetic patient
-records, and CTGAN~\cite{xu2019} handles mixed tabular data; the Data Augmentation GAN~\cite{antoniou2017} was
-proposed specifically for the low-data regime. For class imbalance, the classical alternatives are random
-oversampling and SMOTE~\cite{chawla2002}, which interpolates between a minority sample and one of its nearest
-neighbours; He and Garcia~\cite{he2009} review the field. A GAN can also serve as an anomaly detector: AnoGAN
-\cite{schlegl2017} trains on normal data only and scores an input by how poorly the generator can reproduce it. We use
-a lighter-weight version of this idea, scoring with the discriminator or critic, and compare it with Isolation
+\paragraph{GANs and imbalanced data.} A GAN trains a generator against a discriminator~\cite{goodfellow2014}; the
+conditional version feeds a class label to both~\cite{mirza2014}. Training is unstable, which led to label
+smoothing~\cite{salimans2016} and the Wasserstein objective with gradient penalty~\cite{arjovsky2017,gulrajani2017}.
+medGAN~\cite{choi2017} and CTGAN~\cite{xu2019} generate synthetic patient records and tabular data. The classical
+answers to class imbalance are random oversampling and SMOTE~\cite{chawla2002}. A GAN trained on normal data can also
+score anomalies, as in AnoGAN~\cite{schlegl2017}; we compare a lighter version of that idea with Isolation
 Forest~\cite{liu2008} and the one-class SVM~\cite{scholkopf2001}.
 
-\subsection{Survey of Related Approaches}
-
-\begin{table}[H]
-\centering
-\caption{Related approaches compared with the system built in this project.}
-\label{tab:survey}
-\small
-\begin{tabularx}{\textwidth}{p{2.6cm}p{2.5cm}Xp{3.0cm}}
-\toprule
-\textbf{Approach} & \textbf{Domain} & \textbf{Main idea} & \textbf{Limitation for our setting}\\
-\midrule
-Classical front end \cite{aho2006} & General languages & Lexing, parsing, type checking & Blind to units, ranges, PHI\\
-Dimension types \cite{kennedy1994} & Scientific code & Units as exponent vectors & No privacy or missing-value rules\\
-TaintDroid \cite{enck2010} & Mobile apps & Dynamic information-flow tracking & Runtime only; no clinical semantics\\
-DeepFix \cite{gupta2017} & Student C programs & Seq2seq repair of syntax/type errors & Needs large labelled corpus\\
-DeepBugs \cite{pradel2018} & JavaScript & Name-based bug classifiers & No domain knowledge\\
-SMOTE \cite{chawla2002} & Tabular data & Interpolate minority neighbours & Not generative; stays inside the convex hull\\
-medGAN / CTGAN \cite{choi2017,xu2019} & Patient records / tables & GAN-based synthetic records & Not applied to program features\\
-AnoGAN \cite{schlegl2017} & Medical images & Anomaly scoring with a GAN & Images, not programs\\
-\textbf{This work} & Medical-data programs & Domain-aware front end $+$ learned error-family classifier with GAN augmentation & Synthetic corpus; DSL rather than a mainstream language\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\subsection{Gap and Positioning}
-
-None of the surveyed systems combines (a) a front end with built-in clinical semantics, (b) a learned classifier that
-sits on top of that front end and reasons about root cause, and (c) an explicit evaluation of GAN-based augmentation
-against simple resampling baselines in the same setting. That combination is what this project attempts. It does so at
-laboratory scale: the language is a purpose-built DSL, and the corpus is synthetic. We return to the consequences of
-those choices in Section~5.8.
-
-\subsection{Limitations of Existing Approaches}
-
-Several limitations of existing approaches shaped our design choices:
-
-\begin{enumerate}
-    \item General-purpose compilers do not check units, ranges, privacy or missingness, so the most dangerous
-    clinical mistakes pass silently.
-    \item Rule-based analyses are precise but incomplete; they cannot flag a rule that is merely \emph{wrong}.
-    \item With several coexisting faults, the first reported diagnostic may not be the root cause, and phase gating hides
-    later-phase faults entirely.
-    \item Learned bug detectors require large corpora, which regulated domains cannot provide.
-    \item GAN training is unstable and data-hungry, and its benefit over cheap resampling is rarely tested on the same
-    task.
-\end{enumerate}
-
-\newpage
+\paragraph{Gap.} None of these systems combines a front end with clinical semantics, a learned classifier on top of it
+that reasons about root cause, and a test of GAN augmentation against cheap resampling on the same task. This project
+tries that combination at lab scale, with a purpose-built DSL and a synthetic corpus.
 
 % ============================================================
 % PROPOSED METHODOLOGY
@@ -512,18 +372,16 @@ Several limitations of existing approaches shaped our design choices:
 
 \subsection{System Overview}
 
-The system has two cooperating halves, shown in Figure~\ref{fig:arch}. The \emph{compiler half} is a conventional
-pipeline---scanner, parser, semantic analyser, intermediate-code generator, optimiser---for a domain-specific
-language called MedScript. Every phase reports diagnostics with a stable code, a position and a message. The
-\emph{learning half} takes what the compiler produced (tokens, syntax tree, diagnostics) and condenses it into a
-fixed-length feature vector. A classifier maps that vector to one of ten classes: \emph{valid} or one of nine error
-families. A conditional GAN, trained on feature vectors of the labelled corpus, supplies extra synthetic records of
-the rare classes at training time. At inference time the GAN is not used; the deployed artefact is the compiler plus
-a random-forest classifier.
+The system has two halves (Figure~\ref{fig:arch}). The compiler half is a conventional pipeline (scanner, parser,
+semantic analyser, intermediate-code generator, optimiser) for a language called MedScript, and every phase reports
+diagnostics with a stable code, a position and a message. The learning half condenses the tokens, syntax tree and
+diagnostics into a fixed-length feature vector, and a classifier maps it to one of ten classes: \emph{valid} or one of
+nine error families. A conditional GAN trained on the labelled vectors supplies extra records of rare classes at
+training time only. What gets deployed is the compiler plus a random forest.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
-\resizebox{\textwidth}{!}{%
+\resizebox{0.92\textwidth}{!}{%
 \begin{tikzpicture}[
   box/.style={rectangle,rounded corners=3pt,draw,minimum height=0.9cm,minimum width=2.1cm,align=center,font=\small,fill=blue!6},
   ml/.style={rectangle,rounded corners=3pt,draw,minimum height=0.9cm,minimum width=2.4cm,align=center,font=\small,fill=orange!12},
@@ -563,67 +421,38 @@ a random-forest classifier.
 \draw[dsh] (corp.north) -- ++(0,0.9) -| (diag.south west);
 \node[font=\scriptsize,align=center] at (4.2,-3.35) {same extractor};
 \end{tikzpicture}}
-\caption{Architecture of the proposed system. Solid arrows are data flow, dashed arrows are diagnostics and features
-collected from the compiler phases. The GAN branch (bottom) is used only to enlarge the training set.}
+\caption{System architecture. Solid arrows are data flow, dashed arrows are diagnostics and features collected from
+the compiler phases. The GAN branch (bottom) is only used to enlarge the training set.}
 \label{fig:arch}
 \end{figure}
 
 \subsection{The MedScript Language}
 
-MedScript is deliberately small: it contains just enough to express the programs a clinical-informatics student
-might write, and just enough machinery to make the domain-specific checks meaningful. Its main design decisions
-are the following.
+MedScript is small on purpose: enough to write the programs a clinical-informatics student would write, and enough
+machinery to make the domain checks meaningful.
 
 \begin{itemize}
-    \item \textbf{Units are part of the type.} A numeric type is \code{int}, \code{float}, or a float tagged with a
-    unit expression such as \code{kg}, \code{mg/kg} or \code{kg/metre\textasciicircum 2}. Literals carry units:
-    \code{38.0 degC}, \code{15 mg/kg}.
-    \item \textbf{Inputs are declared with metadata.} \code{input weight: kg range(2, 300);} declares a read-only
-    patient quantity with a physiological range. \code{phi} marks protected health information.
-    \item \textbf{Optional values.} A trailing \code{?} (as in \code{mg/ml?}) means the value may be missing. It
-    must be tested with \code{present(x)} before use.
-    \item \textbf{Two output sinks.} \code{print} and \code{export}; both reject PHI unless it passed through
-    \code{anonymize}.
-    \item \textbf{Ordinary control flow.} \code{if}/\code{else}, \code{while}, functions with typed parameters and
-    return types, \code{let} bindings with optional type inference.
+    \item \textbf{Units are part of the type.} A numeric type is \code{int}, \code{float}, or a float with a unit such
+    as \code{kg}, \code{mg/kg} or \code{kg/metre\textasciicircum 2}. Literals carry units: \code{38.0 degC}. The
+    vocabulary has eleven units (\code{kg}, \code{lb}, \code{gram}, \code{mg}, \code{ml}, \code{hour}, \code{bpm},
+    \code{mmHg}, \code{degC}, \code{degF}, \code{metre}), each with a plausible literal range such as 20 to 45 for \code{degC}.
+    \item \textbf{Inputs carry metadata.} \code{input weight: kg range(2, 300);} declares a read-only patient value with
+    a physiological range, and \code{phi} marks protected health information.
+    \item \textbf{Optional values.} A trailing \code{?} means the value may be missing and must be tested with
+    \code{present(x)} before use.
+    \item \textbf{Two sinks}, \code{print} and \code{export}, which reject PHI unless it went through \code{anonymize}.
+    \item \textbf{Ordinary control flow}: \code{if}/\code{else}, \code{while}, typed functions and \code{let} bindings.
 \end{itemize}
 
-Table~\ref{tab:units} lists the unit vocabulary. The single-letter units one might expect (\code{m}, \code{g},
-\code{h}) are spelled \code{metre}, \code{gram} and \code{hour}, so that those short names stay available as
-identifiers.
-
-\begin{table}[H]
-\centering
-\caption{Units of measure known to the compiler and the plausibility bounds used for literals.}
-\label{tab:units}
-\small
-\begin{tabular}{llr}
-\toprule
-\textbf{Unit} & \textbf{Meaning} & \textbf{Plausible literal range}\\
-\midrule
-\code{kg}, \code{lb} & body mass & 0.2--500 kg;\ 0.4--1100 lb\\
-\code{gram}, \code{mg} & mass of substance & 0--20 g;\ 0--20000 mg\\
-\code{ml}, \code{hour} & volume, time & 0--10000 ml;\ 0--72 h\\
-\code{bpm} & beats (or breaths) per minute & 0--300\\
-\code{mmHg} & blood pressure & 0--350\\
-\code{degC}, \code{degF} & temperature & 20--45 $^\circ$C;\ 68--113 $^\circ$F\\
-\code{metre} & body height & 0.2--2.5\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-A complete program that the compiler accepts is shown in Listing~\ref{lst:ok}. It computes a weight-based dose with
-a safety cap, a body-mass index, a fever alert, a sepsis screen, an alert that is guarded for a possibly missing
-laboratory value, and an anonymised export.
+Listing~\ref{lst:ok} shows a program the compiler accepts: a capped weight-based dose, a BMI, a fever alert, a sepsis
+screen, a guarded check on a possibly missing lab value, and an anonymised export.
 
 \begin{lstlisting}[language=MedScript,caption={A valid MedScript program (\texttt{examples/triage\_ok.med}).},label={lst:ok}]
 input patient_name: string phi;
 input weight: kg range(2, 300);
-input height: metre range(0.4, 2.3);
 input temp: degC range(30, 43);
 input hr: bpm range(20, 250);
 input lactate: mg? range(0, 400);
-
 const MAX_DOSE: mg = 1000 mg;
 
 func dose_for(w: kg, rate: mg/kg) -> mg {
@@ -631,12 +460,7 @@ func dose_for(w: kg, rate: mg/kg) -> mg {
     if (d > MAX_DOSE) { return MAX_DOSE; }
     return d;
 }
-func bmi(w: kg, h: metre) -> kg/metre^2 {
-    return w / (h * h);
-}
-
 let dose: mg = dose_for(weight, 15 mg/kg);
-let index = bmi(weight, height);
 let fever = false;
 if (temp > 38.0 degC) { fever = true; print("fever alert"); }
 if (hr > 100 bpm && fever) { print("sepsis screen"); }
@@ -645,375 +469,163 @@ if (present(lactate)) {
 }
 export(anonymize(patient_name));
 print(dose);
-print(index);
 \end{lstlisting}
 
-\subsection{Lexical Analysis}
+\subsection{Lexical and Syntax Analysis}
 
-The scanner is a hand-written, single-pass, longest-match recogniser. The token classes are summarised in
-Table~\ref{tab:tokens}. Identifiers and keywords share one regular expression; the lexeme is then looked up in the
-keyword set and in the unit set. A numeric lexeme is first collected as the maximal run of letters, digits and dots
-and \emph{then} validated against $[0\text{-}9]^+(.[0\text{-}9]^+)?$; this way \code{3.4.5} and \code{10x} are reported as one
-malformed number rather than as a number followed by stray characters.
+The scanner is a hand-written, single-pass, longest-match recogniser for identifiers, 16 keywords, 11 unit words,
+numbers, strings, operators and \code{//} comments. A numeric lexeme is collected as the longest run of letters, digits
+and dots and only then checked against $[0\text{-}9]^+(.[0\text{-}9]^+)?$, so \code{3.4.5} is reported as one bad
+number instead of a number plus junk. The three lexical errors (illegal character, malformed number, unterminated
+string; \code{LEX001} to \code{LEX003}) are all recoverable, so later phases still run. That matters for
+classification: a lexical error does not hide semantic faults, but a syntax error does.
 
-\begin{table}[H]
-\centering
-\caption{Token classes of MedScript.}
-\label{tab:tokens}
-\small
-\begin{tabular}{p{1.9cm}p{7.4cm}p{4.0cm}}
-\toprule
-\textbf{Class} & \textbf{Pattern} & \textbf{Examples}\\
-\midrule
-\code{ID} & letter or underscore, then letters, digits, underscores (minus keywords and units) & \code{weight}, \code{dose\_for}\\
-Keyword & fixed set of 16 words & \code{input}, \code{if}, \code{phi}, \code{range}\\
-\code{UNIT} & fixed set of 11 words & \code{kg}, \code{mmHg}, \code{degC}\\
-\code{NUM} & digits, optionally a dot and more digits & \code{38}, \code{0.45}\\
-\code{STR} & double quote, any characters except quote and newline, double quote & \code{"ALERT fever"}\\
-Operators & \code{+ - * / \% < > <= >= == != \&\& || ! = ->} & \\
-Punctuation & \code{( ) \{ \} , ; : ? \textasciicircum} & \\
-Comment & \code{//} to end of line (discarded) & \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Three lexical diagnostics exist: an illegal character (\code{LEX001}), a malformed number (\code{LEX002}) and an
-unterminated string (\code{LEX003}). Each is \emph{recoverable}: an illegal character is dropped, a malformed number
-is replaced by its longest valid prefix, and an unterminated string consumes the rest of the line. The parser
-therefore still receives a usable token stream, and later phases run normally. This detail matters for
-classification: a lexical error does not hide semantic faults, whereas a syntax error does.
-
-\subsection{Syntax Analysis}
-
-The grammar (Appendix~A gives it in full) is LL(1) apart from two decisions. When a statement begins with an
-identifier, the parser must choose between an assignment and a call; it resolves this with one extra token of
-lookahead (\code{ID =}). Likewise, after a number and a unit, a following \code{/} belongs to the unit expression
-only if the token after it is also a unit. Expressions use precedence climbing over six levels, from \code{||}
-(lowest) to the multiplicative operators. Table~\ref{tab:first} lists the tokens that can begin each kind of
-statement, which are also the synchronisation points used for error recovery.
-
-\begin{table}[H]
-\centering
-\caption{FIRST sets of the statement forms, used for prediction and as synchronisation tokens.}
-\label{tab:first}
-\small
-\begin{tabular}{ll}
-\toprule
-\textbf{Construct} & \textbf{FIRST}\\
-\midrule
-input declaration & \code{input}\\
-constant declaration & \code{const}\\
-function declaration & \code{func}\\
-let / if / while / return & \code{let}\ \ \code{if}\ \ \code{while}\ \ \code{return}\\
-block & \code{\{}\\
-assignment & \code{ID} followed by \code{=}\\
-call statement / expression & \code{ID}, \code{NUM}, \code{STR}, \code{true}, \code{false}, \code{(}, \code{-}, \code{!}\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\paragraph{Error recovery.} Two mechanisms are combined. When a \emph{closing} token is missing---\code{;},
-\code{)} or \code{\}}---the parser reports \code{SYN001}, anchors the message at the end of the previous token (where
-a programmer would expect to see it), and carries on as if the token had been inserted. When an expression cannot
-start (\code{SYN002}) the parser raises an internal resynchronisation exception that is caught at statement level;
-the handler skips tokens until a semicolon is consumed or a token from Table~\ref{tab:first} is seen. At most one
-diagnostic is issued per input position, which suppresses most duplicate cascades. A premature end of file yields
-\code{SYN003}. If the parse produced \emph{any} syntax diagnostic, the semantic analyser is not run.
+The grammar is LL(1) except in two places. A statement starting with an identifier needs one extra token to choose
+between assignment and call, and after a number and a unit, a \code{/} belongs to the unit only if another unit follows.
+Expressions use precedence climbing over six levels. Error recovery combines two mechanisms. A missing \code{;},
+\code{)} or \code{\}} is reported as \code{SYN001} at the end of the previous token, where a programmer expects to see
+it, and parsing continues as if the token were there. When an expression cannot start (\code{SYN002}), the parser skips
+to the next semicolon or statement keyword. At most one diagnostic is issued per position, which removes most duplicate
+cascades. If any syntax error was reported, semantic analysis is skipped.
 
 \subsection{Semantic Analysis}
 
-The semantic analyser walks the tree once, keeping a stack of scopes and a small flow state. It is the part of the
-compiler that carries the clinical knowledge, so we describe each check in turn.
+The analyser walks the tree once with a stack of scopes and a small flow state. This is where the clinical knowledge
+lives. Functions are collected in a first pass, so calls can come before definitions, and the usual name errors
+(undeclared, redeclared, uninitialised, assignment to an input) are reported.
 
-\subsubsection{Symbol table and scopes}
+\paragraph{Types and units.} A numeric type is a pair $\tau[d]$ with $\tau\in\{\texttt{int},\texttt{float}\}$ and
+$d\in\mathbb{Z}^{U}$ a dimension vector holding one exponent per base unit. For example \code{mg/kg} has $+1$ for
+\code{mg} and $-1$ for \code{kg}. The arithmetic rules are
+\begin{equation}
+\frac{e_1:\tau_1[d_1]\quad e_2:\tau_2[d_2]\quad d_1=d_2}{e_1\pm e_2:\tau[d_1]}\qquad
+\frac{e_1:\tau_1[d_1]\quad e_2:\tau_2[d_2]}{e_1\cdot e_2:\tau[d_1+d_2]}\qquad
+\frac{e_1:\tau_1[d_1]\quad e_2:\tau_2[d_2]}{e_1/e_2:\texttt{float}[d_1-d_2]}
+\end{equation}
+and comparison needs $d_1=d_2$. So \code{rate * w} with \code{rate}:\code{mg/kg} and \code{w}:\code{kg} comes out as
+\code{mg}, which is what \code{let d: mg} expects, while \code{weight + 5 lb} fails because \code{kg} and \code{lb} are
+distinct and there is no implicit conversion. A pure dimension mismatch is \code{SEM005}; a base-type, arity or
+condition mismatch is \code{SEM004}, \code{SEM006} or \code{SEM008}. Keeping them apart lets the classifier tell the
+\emph{type} and \emph{unit} families apart later.
 
-Inputs and constants live in a global scope. Top-level \code{let} bindings live in a ``main'' scope layered above
-it; function bodies see only the global scope, their parameters and their own locals. Functions are collected in a
-first pass, so a call may precede the definition. Declaring a name twice in one scope is \code{SEM002}. A
-\code{let} variable that is never read gives the warning \code{W002}.
+\paragraph{Ranges.} Every numeric value can carry an interval $[l,h]$ from an input's declared range or from interval
+arithmetic on constants. A unit literal outside its plausible range (\code{380 degC}) is flagged, and so is a comparison
+of a ranged input against a constant outside $[l,h]$, since it is then always true or always false. Both are
+\code{DOM001}. A constant zero divisor is \code{DOM004}; a divisor whose interval contains zero is \code{DOM005} unless
+a branch condition such as \code{x > 0} has established it is non-zero.
 
-\subsubsection{Types and units}
+\paragraph{PHI taint.} Let $\mathrm{t}(e)\in\{0,1\}$ say whether $e$ may hold protected health information. Then
+$\mathrm{t}(x)=\mathit{phi}(x)$, $\mathrm{t}(e_1\odot e_2)=\mathrm{t}(e_1)\lor\mathrm{t}(e_2)$, a function call is
+tainted if any argument is, and $\mathrm{t}(\texttt{anonymize}(e))=0$. A tainted argument to a sink is \code{DOM002}.
+The analysis is conservative: it never misses a leak, but a function that throws away its tainted argument still counts
+as propagating it.
 
-Let a numeric type be a pair $\tau[d]$ where $\tau\in\{\texttt{int},\texttt{float}\}$ and $d\in\mathbb{Z}^{U}$ is a
-\emph{dimension vector}, one integer exponent per base unit $u\in U$. A plain number has $d=\mathbf{0}$; the type
-\code{mg/kg} has exponent $+1$ for \code{mg}, $-1$ for \code{kg} and $0$ elsewhere. The typing rules for arithmetic are
-\begin{align}
-&\frac{\Gamma\vdash e_1:\tau_1[d_1]\quad\Gamma\vdash e_2:\tau_2[d_2]\quad d_1=d_2}
-     {\Gamma\vdash e_1\pm e_2:\tau[d_1]}\\[4pt]
-&\frac{\Gamma\vdash e_1:\tau_1[d_1]\quad\Gamma\vdash e_2:\tau_2[d_2]}
-     {\Gamma\vdash e_1\cdot e_2:\tau[d_1+d_2]}\\[4pt]
-&\frac{\Gamma\vdash e_1:\tau_1[d_1]\quad\Gamma\vdash e_2:\tau_2[d_2]}
-     {\Gamma\vdash e_1/e_2:\texttt{float}[d_1-d_2]}
-\end{align}
-and comparison requires $d_1=d_2$ and yields \code{bool}. As an example, the product \code{rate * w} with
-\code{rate}:\code{mg/kg} and \code{w}:\code{kg} has dimension $(+1)_{\text{mg}}+(-1)_{\text{kg}}+(+1)_{\text{kg}}=(+1)_{\text{mg}}$,
-i.e., it is a mass in milligrams, which is exactly what the declaration \code{let d: mg = rate * w} expects.
-Adding \code{weight + 5 lb} fails because $d_1\ne d_2$: \code{kg} and \code{lb} are distinct base units and the
-language does not convert implicitly (conversion goes through \code{lb\_to\_kg}). The literal \code{0} is the only
-dimension-polymorphic value, so that comparisons such as \code{x > 0} remain convenient.
+\paragraph{Optional values and flow.} Using an optional variable is \code{DOM003} unless a presence fact holds. Facts
+come from \code{present(x)} guards, from \code{present(x) \&\& c}, from the else branch of \code{!present(x)}, and from
+early exits like \code{if (!present(x)) \{ return 0; \}}. At a join the facts of both branches are intersected. The
+same state tracks definite assignment, functions that can fall off the end without returning (\code{SEM007}),
+unreachable statements (\code{W001}) and constant conditions (\code{W003}).
 
-A mismatch between base kinds (a string where a number is expected, a non-boolean condition, a wrong argument count)
-is reported as \code{SEM004}, \code{SEM008} or \code{SEM006}; a mismatch of dimensions alone is \code{SEM005}. Keeping
-the two apart is what lets the classifier distinguish the \emph{type} and \emph{unit} families later.
+The analyser has 23 diagnostic codes, and each belongs to exactly one error family. These families are the label space
+of the classifier (Table~\ref{tab:families}).
 
-\subsubsection{Ranges and thresholds}
-
-Every numeric value carries, besides its type, an optional closed interval $[l,h]$ obtained from the declared range
-of an input or from interval arithmetic on constants:
-\begin{align}
-[a,b]+[c,d]&=[a+c,\,b+d],\\
-[a,b]\cdot[c,d]&=[\min P,\max P],\quad P=\{ac,ad,bc,bd\},\\
-[a,b]/[c,d]&=[a,b]\cdot[1/d,\,1/c],\quad\text{defined iff }0\notin[c,d].
-\end{align}
-Two checks use the intervals. (i) A literal that carries a single unit must lie inside the plausibility interval of
-Table~\ref{tab:units}; \code{380 degC} does not. (ii) A comparison between an input with declared range $[l,h]$ and a
-constant $k$ with $k<l$ or $k>h$ is flagged, because the comparison is then always true or always false. Both give
-\code{DOM001}. A threshold exactly equal to a bound, such as \code{hr > 250 bpm} with \code{range(20, 250)}, is accepted.
-
-\subsubsection{Division by zero}
-
-A divisor whose constant value is $0$ gives \code{DOM004}. A divisor whose interval contains $0$ gives \code{DOM005},
-unless a \emph{non-zero fact} is in force for that variable. Non-zero facts are produced by branch conditions such as
-\code{x > 0}, \code{x != 0}, or the negation of \code{x <= 0}, and they hold inside the branch (or after an
-early-returning branch that tests the opposite).
-
-\subsubsection{PHI taint tracking}
-
-Let $\mathrm{t}(e)\in\{0,1\}$ denote whether the value of expression $e$ may contain protected health information.
-\begin{align}
-\mathrm{t}(x)&=\mathit{phi}(x),\\
-\mathrm{t}(e_1\odot e_2)&=\mathrm{t}(e_1)\lor\mathrm{t}(e_2),\\
-\mathrm{t}(\texttt{anonymize}(e))&=0,\\
-\mathrm{t}(f(e_1,\dots,e_n))&=\textstyle\bigvee_i \mathrm{t}(e_i).
-\end{align}
-A \code{let} or assignment copies the taint of its right-hand side to the variable. A call to a sink with any argument
-$e_i$ for which $\mathrm{t}(e_i)=1$ is \code{DOM002}. The analysis is a conservative, flow-insensitive approximation:
-it never misses a leak through the constructs of the language, but a function that discards its tainted argument
-is still treated as propagating it.
-
-\subsubsection{Optional values}
-
-A variable of optional type may be missing. Using it in an expression is \code{DOM003} unless a \emph{presence fact}
-holds. Presence facts come from the guard forms $\texttt{present}(x)$, $\texttt{present}(x)\,\&\&\,c$ (the fact holds
-while evaluating $c$), $\texttt{!present}(x)$ in the else branch, and early exits such as
-\code{if (!present(x)) \{ return 0; \}}, after which $x$ is present for the rest of the block. Branch merging is an
-intersection of facts, so a fact survives a join only if both arms established it.
-
-\subsubsection{Definite assignment, returns and reachability}
-
-The flow state also records which \code{let} variables are definitely assigned; at a join the sets are intersected, and a
-use of a variable outside the set is \code{SEM003}. Whether a block \emph{always returns} is computed bottom-up; a
-non-void function whose body can finish without returning gives \code{SEM007}. A statement after a
-\code{return} gives the warning \code{W001}, and a constant condition gives \code{W003}.
-
-\subsubsection{Diagnostic catalogue}
-
-The analyser can emit 23 distinct codes in total. Each belongs to exactly one error family, which is the label
-space of the classifier (Table~\ref{tab:families}). The complete catalogue with messages is in Appendix~B.
-
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
-\caption{The ten classes and the diagnostics that belong to each family.}
+\caption{The ten classes and their diagnostic codes.}
 \label{tab:families}
 \small
-\begin{tabular}{clp{7.4cm}}
+\begin{tabular}{clp{9.6cm}}
 \toprule
 \textbf{Id} & \textbf{Class} & \textbf{Diagnostic codes / meaning}\\
 \midrule
 0 & valid & no error (warning \code{W002} allowed)\\
-1 & lexical & \code{LEX001}--\code{LEX003}: illegal character, malformed number, unterminated string\\
-2 & syntax & \code{SYN001}--\code{SYN003}: missing token, unexpected token, unexpected end of file\\
+1 & lexical & \code{LEX001} to \code{LEX003}: illegal character, malformed number, unterminated string\\
+2 & syntax & \code{SYN001} to \code{SYN003}: missing token, unexpected token, unexpected end of file\\
 3 & name & \code{SEM001}, \code{SEM002}, \code{SEM003}, \code{SEM009}: undeclared, redeclared, uninitialised, assignment to input\\
 4 & type & \code{SEM004}, \code{SEM006}, \code{SEM008}: base-type, arity and condition errors\\
-5 & unit & \code{SEM005}: unit-of-measure mismatch\\
+5 & unit & \code{SEM005}: unit mismatch\\
 6 & range & \code{DOM001}: implausible value or threshold outside declared range\\
 7 & phi & \code{DOM002}: PHI reaching a sink\\
-8 & missing & \code{DOM003}: optional value used unguarded\\
-9 & logic & \code{SEM007}, \code{DOM004}, \code{DOM005}, \code{W001}, \code{W003}, and rule errors invisible to the compiler\\
+8 & missing & \code{DOM003}: optional value used without a guard\\
+9 & logic & \code{SEM007}, \code{DOM004}, \code{DOM005}, \code{W001}, \code{W003}, and rule errors the compiler cannot see\\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Intermediate Code and Optimisation}
 
-After a successful analysis the tree is lowered to three-address code. Local variables are renamed uniquely
-(\code{x@3}) so that shadowing cannot confuse later passes, short-circuit operators become conditional jumps, and
-calls become \code{param}/\code{call} sequences. For \code{c = a + b * 10} the generator emits
-\begin{align}
-t_1 &= b * 10\\
-t_2 &= a + t_1\\
-c &= t_2
-\end{align}
-and the optimiser reduces it to $t_1 = b*10;\ c = a + t_1$. The passes are the classical ones~\cite{muchnick1997,aho2006},
-iterated until the code size stops changing (at most four rounds):
+An error-free tree is lowered to three-address code. Locals are renamed uniquely (\code{x@3}) so shadowing cannot
+confuse later passes, short-circuit operators become conditional jumps, and calls become \code{param}/\code{call}
+sequences. Six classic passes~\cite{muchnick1997,aho2006} run until the code stops shrinking (at most four rounds):
+constant folding and propagation within basic blocks, algebraic simplification ($x+0$, $x\cdot 1$), local
+common-subexpression elimination by value numbering, unreachable-code removal, dead-store elimination, and copy fusion
+($t=a\,\mathit{op}\,b;\ v=t \Rightarrow v=a\,\mathit{op}\,b$). To check that the passes do not change behaviour, a small
+virtual machine runs the original and optimised code on random inputs drawn from the declared ranges (with about 30\% of
+optional inputs left missing) and requires identical \code{print} and \code{export} events.
 
-\begin{enumerate}
-    \item \textbf{Constant folding and propagation} inside basic blocks, including folding of comparisons, and
-    elimination of \code{ifFalse} jumps with constant conditions.
-    \item \textbf{Algebraic simplification}: $x+0$, $x-0$, $x\cdot 1$, $x/1$.
-    \item \textbf{Local common-subexpression elimination} by value numbering over $(\text{op},a,b)$, invalidated when an
-    operand is redefined.
-    \item \textbf{Unreachable-code removal} after unconditional jumps and returns, and removal of unused labels.
-    \item \textbf{Dead-store elimination} for temporaries and local variables that are never read.
-    \item \textbf{Copy fusion}: $t=a\,\mathit{op}\,b;\ v=t \Rightarrow v=a\,\mathit{op}\,b$ when $t$ has a single use.
-\end{enumerate}
+\subsection{Feature Extraction and Labelling}
 
-These are deliberately modest compared with a production back end such as LLVM~\cite{lattner2004}; the aim is a
-compact pipeline that is easy to verify. To check that none of the passes changes behaviour, the project includes a
-small virtual machine that executes the three-address code. For a program the test harness draws random input values
-from the declared ranges (leaving about 30\% of the optional ones missing), runs the unoptimised and optimised code, and
-requires the sequences of \code{print} and \code{export} events to be identical.
+The classifier never sees source text. For each program the extractor builds a vector of \NFeat{} numbers in four
+groups (Table~\ref{tab:features}). The diagnostic group carries the compiler's knowledge. The pattern group is there for
+faults that produce no diagnostic: for each comparison, it checks whether nearby identifiers or strings contain a
+``high-risk'' word (\emph{fever}, \emph{tachycardia}, \emph{overdose}, \ldots) or a ``low-risk'' word
+(\emph{hypothermia}, \emph{bradycardia}, \ldots) and counts the four combinations of word type and operator direction. A
+correct program mostly has ``high with $>$'' and ``low with $<$''; the other two point to a reversed rule.
 
-\subsection{Feature Extraction}
-
-The classifier does not see raw source. For each compiled program the extractor produces a vector of \NFeat{} numbers
-in four groups (Table~\ref{tab:features}). The \emph{diagnostic} group is the interface to the compiler's knowledge:
-it contains the count of each of the 23 codes, the number of errors and warnings, whether the semantic phase ran
-at all, a one-hot encoding of the family and phase of the first error, the number of distinct families that
-appear, and the rank of the most severe one. The \emph{pattern} group exists for faults that produce no diagnostics. For
-each relational operator the extractor looks at a short window of surrounding identifiers and string literals and
-checks whether it contains a word from a small ``high-risk'' vocabulary (\emph{fever}, \emph{tachycardia},
-\emph{hypertension}, \emph{overdose}, \ldots) or a ``low-risk'' vocabulary (\emph{hypothermia}, \emph{bradycardia},
-\emph{hypotension}, \ldots), and counts the four combinations of vocabulary and operator direction. A well-formed
-program has mostly ``high with $>$'' and ``low with $<$''; the other two combinations indicate a reversed rule or a
-mismatched label.
-
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
 \caption{Feature groups.}
 \label{tab:features}
 \small
-\begin{tabular}{lrp{9.4cm}}
+\begin{tabular}{lrp{10.2cm}}
 \toprule
 \textbf{Group} & \textbf{Dim.} & \textbf{Content}\\
 \midrule
-Token (\code{tok}) & 30 & log-counts of token classes (identifiers, numbers, strings, units, keyword groups,
-punctuation, operator groups), program length, brace and parenthesis balance, semicolons per statement\\
-AST (\code{ast}) & 25 & log-counts of node types, tree size and depth, counts of optional inputs, PHI inputs, ranged
-inputs, sinks, \code{anonymize} and \code{present} calls, literal-zero divisors\\
-Diagnostics (\code{diag}) & 40 & per-code counts (23), error and warning totals, semantic-phase flag, first-error
-family (9) and phase (3), number of distinct families, worst-family rank\\
-Pattern (\code{pat}) & 6 & comparison direction $\times$ alert vocabulary (four counts), number of alert rules, number
-of mismatched rules\\
+Token & 30 & log-counts of token classes, program length, brace and parenthesis balance, semicolons per statement\\
+AST & 25 & log-counts of node types, tree size and depth, optional/PHI/ranged inputs, sinks, \code{anonymize} and \code{present} calls\\
+Diagnostics & 40 & count of each of the 23 codes, error and warning totals, semantic-phase flag, family and phase of the first error, number of distinct families, worst-family rank\\
+Pattern & 6 & comparison direction $\times$ alert vocabulary (four counts), number of alert rules, number of mismatched rules\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Error Taxonomy and Labelling}
+Each program has one label. With two injected faults, the label is the family with higher root-cause priority:
+syntax $>$ lexical $>$ phi $>$ range $>$ unit $>$ missing $>$ type $>$ name $>$ logic. This order is a modelling choice.
+Syntax comes first because it hides everything else, privacy and range next because they are the most safety-critical,
+and logic last because it is the most mixed family.
 
-A program has exactly one label. For single-fault programs the label is the family of the injected fault. For
-programs with two injected faults the label is the one with higher \emph{root-cause priority}, using the order
-\begin{align*}
-&\text{syntax}>\text{lexical}>\text{phi}>\text{range}>\\
-&\text{unit}>\text{missing}>\text{type}>\text{name}>\text{logic}.
-\end{align*}
-The order is a modelling decision, not a law. Syntax errors come first because they hide everything else; privacy
-and range errors come next because they are the most safety-critical; \emph{logic} is last because it is the most
-heterogeneous family. A second fault is only injected from a family of lower priority than the first, so the label is
-always well defined.
+\subsection{Conditional GAN}
 
-\subsection{Conditional GAN on Feature Vectors}
-
-Let $x\in\mathbb{R}^{101}$ be a standardised feature vector and $y\in\{0,\dots,9\}$ its class, encoded one-hot as $c$.
-The generator maps a noise vector $z\sim\mathcal{N}(0,I_{32})$ and $c$ to a synthetic vector,
-$\tilde{x}=G(z,c)$, and the discriminator $D(x,c)$ produces a scalar score. Both are multilayer perceptrons with two
-hidden layers of 128 units and LeakyReLU(0.2) activations; the discriminator uses dropout 0.3. They are implemented in
-PyTorch~\cite{paszke2019}.
-
-\paragraph{Vanilla (BCE) objective.} The original minimax game conditioned on the label is
-\begin{multline}
-\min_G\max_D\ \mathbb{E}_{(x,y)}\big[\log D(x,c_y)\big]\\
-+\mathbb{E}_{z,y}\big[\log\big(1-D(G(z,c_y),c_y)\big)\big].
-\end{multline}
-In practice the generator uses the non-saturating loss $L_G=-\mathbb{E}\log D(G(z,c),c)$, and the discriminator's
-target for real samples is smoothed to $0.9$~\cite{salimans2016}.
-
-\paragraph{WGAN-GP objective.} The critic is trained to minimise
+Let $x\in\mathbb{R}^{101}$ be a standardised feature vector and $c$ the one-hot class. The generator maps noise
+$z\sim\mathcal{N}(0,I_{32})$ and $c$ to $\tilde{x}=G(z,c)$, and the discriminator gives a score $D(x,c)$. Both are MLPs
+with two hidden layers of 128 units and LeakyReLU(0.2), written in PyTorch~\cite{paszke2019}. We train two variants. The
+BCE version plays the conditional minimax game
 \begin{equation}
-L_D=\mathbb{E}\big[D(\tilde{x},c)\big]-\mathbb{E}\big[D(x,c)\big]+\lambda\,\mathbb{E}_{\hat{x}}\Big[\big(\lVert\nabla_{\hat{x}}D(\hat{x},c)\rVert_2-1\big)^2\Big],
+\min_G\max_D\ \mathbb{E}\big[\log D(x,c)\big]+\mathbb{E}\big[\log\big(1-D(G(z,c),c)\big)\big]
 \end{equation}
-with $\hat{x}=\epsilon x+(1-\epsilon)\tilde{x}$, $\epsilon\sim U(0,1)$ and $\lambda=10$~\cite{gulrajani2017}, five critic
-updates per generator update, and $L_G=-\mathbb{E}\,D(G(z,c),c)$.
+with the non-saturating generator loss and real targets smoothed to 0.9~\cite{salimans2016}. The WGAN-GP critic
+minimises
+\begin{equation}
+L_D=\mathbb{E}\big[D(\tilde{x},c)\big]-\mathbb{E}\big[D(x,c)\big]+\lambda\,\mathbb{E}_{\hat{x}}\Big[\big(\lVert\nabla_{\hat{x}}D(\hat{x},c)\rVert_2-1\big)^2\Big]
+\end{equation}
+with $\hat{x}$ sampled between real and fake points, $\lambda=10$ and five critic steps per generator step
+\cite{gulrajani2017}. Both use Adam~\cite{kingma2015} and batch size 64 (2000 generator iterations for BCE, 1000 for
+WGAN-GP). The GAN is trained on all classes jointly, on the training part of each experiment only. For augmentation,
+every class below a target count is topped up with samples from $G(z,c)$, mapped back to the original scale and clipped
+to the training range.
 
-\paragraph{Training details.} Features are standardised with the mean and standard deviation of the GAN's training
-set and clipped to $\pm 6$ standard deviations. Optimisation uses Adam~\cite{kingma2015}: learning rate $2\cdot10^{-4}$,
-$\beta=(0.5,0.999)$ for BCE, and $10^{-4}$, $\beta=(0.5,0.9)$ for WGAN-GP; batch size 64; 2000 generator iterations for
-BCE and 1000 for WGAN-GP. Generated vectors are mapped back to the original scale and clipped to the per-feature
-minimum and maximum seen in training. The GAN is trained on \emph{all} classes jointly, conditionally, using only the
-training portion of the data of a given experiment. For augmentation, each class with fewer examples than a target
-count is topped up with samples drawn from $G(z,c_y)$ (Algorithm~\ref{alg:aug}).
+\subsection{Classifiers, Baselines and Anomaly Scoring}
 
-\begin{algorithm}[H]
-\caption{Conditional-GAN augmentation of rare error classes}
-\label{alg:aug}
-\begin{algorithmic}[1]
-\Require Labelled training features $\{(x_i,y_i)\}$, target size $N$ per class, iterations $T$
-\Ensure Augmented training set $\mathcal{D}'$
-\State Fit a standardiser on $\{x_i\}$ and transform all vectors
-\State Initialise $G$, $D$; set $\mathcal{D}'\gets\{(x_i,y_i)\}$
-\For{$t=1$ \textbf{to} $T$}
-    \State Sample a mini-batch $(x,y)$ and noise $z$; compute $\tilde{x}=G(z,c_y)$
-    \State Update $D$ (BCE with smoothed targets, or critic with gradient penalty)
-    \State Update $G$ with the corresponding generator loss
-\EndFor
-\For{each class $k$ with $n_k<N$ real examples}
-    \State Draw $N-n_k$ vectors $\tilde{x}=G(z,c_k)$; invert the standardisation; clip to the training range
-    \State Add them to $\mathcal{D}'$ with label $k$
-\EndFor
-\State \Return $\mathcal{D}'$
-\end{algorithmic}
-\end{algorithm}
+We train four scikit-learn~\cite{pedregosa2011} classifiers: a 300-tree random forest~\cite{breiman2001}, an MLP (128
+and 64 hidden units), logistic regression and histogram gradient boosting. Two rule baselines use only the diagnostics.
+\emph{First error} predicts the family of the first reported error, which is what a developer reading top to bottom
+would conclude. \emph{Most severe} predicts the highest-priority family among all errors. The second one is strong on
+purpose, because it is the labelling rule itself, so anything the learned models gain over it comes from cases the rule
+cannot express.
 
-\subsection{Classifiers and Baselines}
-
-Four standard classifiers are trained on feature vectors: a random forest~\cite{breiman2001} with 300 trees, a
-multilayer perceptron (two hidden layers of 128 and 64 units, standardised inputs), multinomial logistic regression, and a
-histogram-based gradient-boosting classifier, all from scikit-learn~\cite{pedregosa2011}. Two rule-based baselines use
-only the compiler's diagnostics and no learning:
-
-\begin{itemize}
-    \item \textbf{First error}: predict the family of the first reported error (what a developer reading the output
-    top to bottom would conclude); predict \emph{logic} if there is no error but a logic warning, \emph{valid} otherwise.
-    \item \textbf{Most severe}: predict the family of highest root-cause priority among all reported errors, with the same
-    fall-backs.
-\end{itemize}
-
-The second baseline is a strong one: it has access to the labelling rule itself. Any advantage of the learned
-classifiers over it therefore comes from cases that the rule cannot express.
-
-\subsection{GAN-Based Anomaly Scoring}
-
-For anomaly detection the GAN is trained on valid programs only, with a single class. A program is scored by the
-negated discriminator logit (BCE) or negated critic value (WGAN-GP): the less ``real'' the discriminator finds the
-program's feature vector, the more anomalous it is. This is a cheaper relative of AnoGAN~\cite{schlegl2017}, which would
-additionally search the generator's latent space for a reconstruction. It is compared with Isolation Forest
-\cite{liu2008} and a one-class SVM~\cite{scholkopf2001} trained on the same valid programs, and with the binary signal
-``the compiler reported at least one error'', evaluated by AUROC~\cite{fawcett2006}.
-
-\subsection{Integrated Algorithm}
-
-\begin{algorithm}[H]
-\caption{End-to-end processing of a MedScript program}
-\label{alg:pipeline}
-\begin{algorithmic}[1]
-\Require Source text $S$, trained classifier $C$
-\Ensure Diagnostics, optimised IR (if error-free), root-cause estimate
-\State $(\mathit{tokens},\mathit{D}_{\text{lex}})\gets\textsc{Tokenize}(S)$
-\State $(\mathit{AST},\mathit{D}_{\text{syn}})\gets\textsc{Parse}(\mathit{tokens})$
-\If{$\mathit{D}_{\text{syn}}=\emptyset$}
-    \State $\mathit{D}_{\text{sem}}\gets\textsc{Analyse}(\mathit{AST})$ \Comment{types, units, ranges, taint, optionals, flow}
-\EndIf
-\State $\mathit{D}\gets\mathit{D}_{\text{lex}}\cup\mathit{D}_{\text{syn}}\cup\mathit{D}_{\text{sem}}$, sorted by position
-\State $v\gets\textsc{Features}(\mathit{tokens},\mathit{AST},\mathit{D})$
-\State $\hat{y}\gets C(v)$
-\If{$\mathit{D}$ contains no error}
-    \State $\mathit{IR}\gets\textsc{Lower}(\mathit{AST})$; $\mathit{IR}'\gets\textsc{Optimise}(\mathit{IR})$
-\EndIf
-\State \Return $(\mathit{D},\mathit{IR}',\hat{y})$
-\end{algorithmic}
-\end{algorithm}
-
-\newpage
+For anomaly detection a single-class GAN is trained on valid programs only, and a program's score is the negated
+discriminator (or critic) output. This is a cheaper relative of AnoGAN~\cite{schlegl2017}. We compare it with Isolation
+Forest, a one-class SVM, and the plain signal ``the compiler reported an error'', using AUROC~\cite{fawcett2006}.
 
 % ============================================================
 % EXPERIMENTAL SETUP
@@ -1022,168 +634,69 @@ additionally search the generator's latent space for a reconstruction. It is com
 
 \subsection{Dataset Preparation}
 
-No public corpus of faulty medical-data programs exists, and real clinical scripts could not be shared even if
-it did. The corpus was therefore generated, in two steps: a generator that writes \emph{valid} MedScript programs,
-and a set of mutation operators that turn a valid program into a faulty one.
+There is no public corpus of faulty medical-data programs, and real clinical scripts could not be shared anyway, so we
+generated one. A generator assembles valid programs from three to seven of sixteen building blocks (capped dosing, BMI,
+vital-sign alerts, shock index, a sepsis rule, infusion rate, an optional lab value with three guarding styles, PHI
+handling, a scoring loop, unit conversion and so on). Two blocks are hard negatives that look wrong but are correct: a
+division by a variable whose range includes zero but is guarded by a positive test, and a threshold equal to the upper
+bound of the declared range. Names, thresholds, ranges, comments and block order are randomised, and every generated
+program must compile cleanly.
 
-\paragraph{Valid programs.} The generator assembles a program from three to seven building blocks drawn at random
-from sixteen: weight-based dosing with a cap, body-mass index, temperature, heart-rate and blood-pressure alerts, shock
-index, a combined sepsis rule, infusion rate, an optional laboratory value (in three different guarding styles),
-PHI handling, a scoring loop, pound-to-kilogram conversion, a severity function, constant arithmetic, and two
-\emph{hard negatives}. The hard negatives are constructs that look like faults but are correct: a division by a
-variable whose range includes zero but that is guarded by a positive test, and a threshold equal to the upper bound of
-the declared range. Variable names, thresholds, ranges, the choice of comments and the order of blocks are
-randomised. Every generated program is required to compile without errors; in a separate check, 1{,}500 generated
-programs compiled with no error and no warning at all.
+Forty-six mutation operators, three to seven per family, then edit a valid program: deleting a semicolon (syntax),
+swapping \code{degC} for \code{mmHg} (unit), printing a PHI input directly (phi), removing a \code{present} guard
+(missing), inverting an alert comparison (logic), and so on. A mutated program is kept only if the compiler reports a
+diagnostic of the intended family. The exception is the two ``soft'' logic operators (inverting a rule, or giving it the
+alert text of the opposite kind), which by design produce no diagnostic. In about 20\% of cases a second, lower-priority
+fault is injected first, so the program has two defects but one well-defined label.
 
-\paragraph{Fault injection.} Forty-six operators, between three and seven per family (Appendix~C), edit the text of a valid
-program. Examples: deleting a semicolon (syntax), swapping the unit of a literal from \code{degC} to \code{mmHg}
-(unit), printing a PHI input directly (phi), removing a \code{present} guard (missing),
-inverting a comparison in an alert rule (logic). After the edit the program is compiled, and it is kept only if the
-fault \emph{manifests}, i.e., the compiler reports a diagnostic of the intended family. The exception is the two
-\emph{soft} logic operators (inverting a rule, or giving it the alert text of the opposite kind), whose faults
-by construction produce no diagnostic; they are kept without that test. In about 20\% of attempts a second fault of
-lower priority is injected \emph{before} the primary one, so that the final program contains two defects but has a
-single, well-defined label.
+The corpus has \NProg{} unique programs, 1{,}000 per class, averaging \MeanLoc{} lines. Of the 9{,}000 faulty ones,
+\NDouble{} (\DoubleShare\%) contain two faults. A fixed stratified split holds out 200 programs per class as the
+\emph{test set} (\NTest{} programs), which is never used for training, GAN fitting or tuning. The other 800 per class form
+the training pool. Generating the whole corpus, including the compile check on each fault, took 18 seconds.
 
-\paragraph{Resulting corpus.} The corpus contains \NProg{} unique programs, 1{,}000 in each of the ten classes, with a
-mean length of \MeanLoc{} lines (\TotalLoc{} lines in total). Of the 9{,}000 faulty programs, \NDouble{}
-(\DoubleShare\%) contain two faults. A fixed stratified split sets aside 200 programs per class as the \emph{test set}
-(\NTest{} programs, never used for training, for fitting the GAN or for choosing hyper-parameters); the remaining
-800 per class form the \emph{training pool} from which every experiment samples. Table~\ref{tab:dataset} summarises
-the composition.
-
-\begin{table}[H]
-\centering
-\caption{Corpus composition.}
-\label{tab:dataset}
-\small
-\begin{tabular}{llrrr}
-\toprule
-\textbf{Id} & \textbf{Class} & \textbf{Operators} & \textbf{Training pool} & \textbf{Test}\\
-\midrule
-0 & valid & --- & 800 & 200\\
-1 & lexical & 3 & 800 & 200\\
-2 & syntax & 6 & 800 & 200\\
-3 & name & 6 & 800 & 200\\
-4 & type & 6 & 800 & 200\\
-5 & unit & 6 & 800 & 200\\
-6 & range & 4 & 800 & 200\\
-7 & phi & 5 & 800 & 200\\
-8 & missing & 3 & 800 & 200\\
-9 & logic & 7 & 800 & 200\\
-\midrule
- & Total & 46 & 8{,}000 & 2{,}000\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{System Requirements}
-
-All experiments ran on a single laptop, without a GPU. The networks are small multilayer perceptrons and the
-feature vectors are 101-dimensional, so CPU training is sufficient.
-
-\begin{table}[H]
-\centering
-\caption{Hardware and software used for the experiments.}
-\label{tab:sysreq}
-\begin{tabular}{ll}
-\toprule
-\textbf{Component} & \textbf{Specification}\\
-\midrule
-Processor & Intel Core i5-13420H (8 cores, 12 threads)\\
-RAM & 16 GB\\
-Operating system & Windows 11 Home\\
-Programming language & Python 3.13\\
-Machine learning & scikit-learn 1.9, PyTorch 2.14 (CPU), NumPy 2.5, SciPy 1.18\\
-Plotting & Matplotlib 3.11\\
-Typesetting & MiKTeX 25.12 (pdfLaTeX)\\
-Parallelism & joblib, 10 worker processes\\
-\bottomrule
-\end{tabular}
-\end{table}
+All experiments ran on a laptop CPU (Intel Core i5-13420H, 16 GB RAM, Windows 11) with Python 3.13, scikit-learn 1.9,
+PyTorch 2.14 and NumPy 2.5. The networks are small and the vectors have 101 dimensions, so no GPU was needed.
 
 \subsection{Experimental Protocol}
 
-Five experiments were run; all random choices are seeded.
+All random choices are seeded.
 
-\paragraph{E1. Rule-based baselines versus learned classifiers.} The four classifiers are trained on all
-8{,}000 training-pool programs and evaluated on the 2{,}000 test programs, next to the two rule baselines.
+\begin{itemize}
+    \item \textbf{E1, rules versus learning.} The four classifiers are trained on all 8{,}000 pool programs and tested on
+    the 2{,}000 test programs, next to the two rule baselines.
+    \item \textbf{E2, feature views.} A random forest is trained on four feature subsets with 5 to 800 programs per class,
+    five random draws each.
+    \item \textbf{E3, augmentation under scarcity.} The valid class has 400 real programs and each faulty class only
+    $n\in\{5,10,20,50,100\}$. Seven regimes are compared: no augmentation, class weights, random oversampling, Gaussian
+    jitter (noise at 10\% of the feature s.d.), SMOTE with $k=5$, and the BCE and WGAN-GP GANs. All but the first two bring
+    each faulty class to 400 vectors. Every setting runs over ten seeds and is tested with a random forest and an MLP.
+    Differences are checked with a paired $t$-test across seeds.
+    \item \textbf{E4, anomaly detection.} Detectors are trained on the 800 valid pool programs and tested on 200 valid
+    versus 200 faulty test programs per family.
+    \item \textbf{E5, compiler performance.} Valid programs of growing size are compiled five times each (median time per
+    phase), and 300 programs are checked for behavioural equivalence before and after optimisation on ten random inputs.
+\end{itemize}
 
-\paragraph{E2. Feature views and learning curves.} A random forest is trained on four feature subsets
-(token+AST, diagnostics, diagnostics+patterns, all features) with $n\in\{5,10,25,50,100,200,800\}$ programs per class,
-five random draws each.
-
-\paragraph{E3. Augmentation under scarcity.} This is the experiment that tests the GAN. The \emph{valid} class has
-400 real training programs; each of the nine faulty classes has only $n\in\{5,10,20,50,100\}$ real programs. Seven
-training regimes are compared: (1) no augmentation; (2) class-balanced weights in the forest; (3) random oversampling;
-(4) Gaussian jitter oversampling (copies perturbed by noise of 10\% of the feature standard deviation); (5) SMOTE
-\cite{chawla2002} with $k=5$; (6) conditional GAN with the BCE objective; (7) conditional GAN with WGAN-GP. In (3)--(7)
-each faulty class is brought up to 400 training vectors. Every configuration is repeated for ten seeds that change
-the sampled real programs, the network initialisation and all random draws, and each result is evaluated on the same
-2{,}000-program test set with a random forest and an MLP. For one seed at $n=20$ we additionally measure the fidelity of
-the synthetic vectors (Section~5.4).
-
-\paragraph{E4. GAN as anomaly detector.} GANs are trained on the 800 valid training programs only; Isolation Forest and a
-one-class SVM are trained on the same data. Each detector scores the 200 valid test programs and the 200 test programs
-of each faulty class; we report AUROC.
-
-\paragraph{E5. Compiler performance.} Synthetic valid programs of increasing size are compiled five times each and the
-median per-phase wall-clock time is recorded. Separately, 300 generated valid programs are compiled, optimised and
-checked for behavioural equivalence on ten random inputs each.
-
-\subsection{Evaluation Metrics}
-
-For class $k$ let $\mathrm{TP}_k$, $\mathrm{FP}_k$, $\mathrm{FN}_k$ be the true positives, false positives and false
-negatives. Then
-\begin{align}
-P_k&=\frac{\mathrm{TP}_k}{\mathrm{TP}_k+\mathrm{FP}_k},\qquad
-R_k=\frac{\mathrm{TP}_k}{\mathrm{TP}_k+\mathrm{FN}_k},\\
-F1_k&=\frac{2P_kR_k}{P_k+R_k},\qquad
-\text{macro-}F1=\frac1{10}\sum_{k=0}^{9}F1_k,
-\end{align}
-and accuracy is the fraction of correctly classified programs \cite{sokolova2009}. Because the test set is balanced,
-accuracy and macro-F1 are close. The AUROC of a detector is the probability that a randomly chosen faulty program
-receives a higher anomaly score than a randomly chosen valid one~\cite{fawcett2006}. Compilation time is
-\begin{equation}
-T_c=T_{\text{lex}}+T_{\text{parse}}+T_{\text{sem}}+T_{\text{IR}}+T_{\text{opt}},
-\end{equation}
-and the optimisation gain in code size is
-\begin{equation}
-G=\frac{N_{\text{original}}-N_{\text{optimised}}}{N_{\text{original}}}\times 100,
-\end{equation}
-where $N$ is the number of three-address instructions. Differences between methods in E3 are tested with a paired
-$t$-test over the ten seeds (the same seed implies the same real programs and the same test set).
-
-\newpage
+Classifiers are scored with accuracy and macro-F1 \cite{sokolova2009}, where macro-F1 is the mean over classes of
+$F1_k=2P_kR_k/(P_k+R_k)$. On a balanced test set the two are close. Detectors are scored with AUROC, the probability that a
+random faulty program scores higher than a random valid one~\cite{fawcett2006}.
 
 % ============================================================
-% RESULTS (part A): corpus, rules vs learned, feature views
+% RESULTS (part A): rules vs learned, feature views
 % ============================================================
 \section{Results and Discussion}
 
-\subsection{Corpus Statistics}
-
-Building the corpus is cheap. Generating the \NProg{} programs, including the compilation that checks each fault
-for manifestation, took 18 seconds, and extracting the feature vectors another 3 seconds on ten worker processes. The
-operator table in Appendix~C shows that most operators are applicable to most programs; the lowest yields come from
-operators that need a particular construct to be present (for example \code{unit\_return} needs the BMI function,
-\code{phi\_removeanon} needs an existing \code{anonymize} call). Among the faulty programs, \DoubleShare\% contain two
-faults.
-
 \subsection{Rule-Based Diagnostics versus Learned Classification (E1)}
 
-Table~\ref{tab:rulesml} compares the two rule baselines with the four learned classifiers on the \NTest{} test programs.
-The learned models reach between \RFAcc\% (random forest) and \HGBAcc\% (gradient boosting) accuracy, against
-\RuleFirstAcc\% for the ``first error'' rule and \RulePrioAcc\% for the ``most severe family'' rule. The four learned
-models are within 0.3 percentage points of each other, which on 2{,}000 test programs is a difference of six programs; we
-do not read any ranking into it. We use the random forest in the remainder of the report because it is the model deployed
-in the command-line tool and because its feature importances are easy to inspect.
+Table~\ref{tab:rulesml} compares the two rule baselines with the four learned classifiers. The learned models reach
+\RFAcc\% (random forest) to \HGBAcc\% (gradient boosting), against \RuleFirstAcc\% for ``first error'' and \RulePrioAcc\%
+for ``most severe''. The four learned models are within 0.3 points of each other, six programs out of 2{,}000, so we do
+not rank them. We use the random forest from here on because it is what the command-line tool ships and its feature
+importances are easy to read.
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
-\caption{Test-set performance of the rule baselines and the learned classifiers
-(\NTest{} test programs; trained on \NTrain{} programs).}
+\caption{Test-set performance (\NTest{} test programs, trained on \NTrain{}).}
 \label{tab:rulesml}
 \small
 \begin{tabular}{lrrrr}
@@ -1200,214 +713,113 @@ HistGB & 0.9940 & 0.9940 & 0.9959 & 0.9835\\\bottomrule
 
 \end{table}
 
-The error breakdown in Figure~\ref{fig:confusion} and Table~\ref{tab:perclass} shows \emph{where} the rules fall short.
-
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textwidth]{figs/confusion.pdf}
-\caption{Row-normalised confusion matrices on the test set. Left: the ``first error'' rule. Right: random forest.}
+\includegraphics[width=0.8\textwidth]{figs/confusion.pdf}
+\caption{Row-normalised confusion matrices on the test set. Left: ``first error'' rule. Right: random forest.}
 \label{fig:confusion}
 \end{figure}
 
-\begin{table}[H]
-\centering
-\caption{Per-class F1 of the rule baselines and precision, recall and F1 of the random forest.}
-\label{tab:perclass}
-\small
-\begin{tabular}{lrrrrr}
-\toprule
- & \multicolumn{2}{c}{\textbf{Rule F1}} & \multicolumn{3}{c}{\textbf{Random forest}}\\
-\cmidrule(lr){2-3}\cmidrule(lr){4-6}
-\textbf{Family} & first & severe & P & R & F1\\
-\midrule
-valid & 0.864 & 0.864 & 0.971 & 1.000 & 0.985\\
-lexical & 0.959 & 0.777 & 0.975 & 0.970 & 0.972\\
-syntax & 0.987 & 0.846 & 1.000 & 0.975 & 0.987\\
-name & 0.913 & 1.000 & 1.000 & 1.000 & 1.000\\
-type & 0.912 & 1.000 & 0.995 & 1.000 & 0.998\\
-unit & 0.922 & 1.000 & 0.985 & 1.000 & 0.993\\
-range & 0.967 & 1.000 & 1.000 & 1.000 & 1.000\\
-phi & 0.931 & 1.000 & 0.990 & 1.000 & 0.995\\
-missing & 0.946 & 1.000 & 1.000 & 1.000 & 1.000\\
-logic & 0.755 & 0.813 & 1.000 & 0.970 & 0.985\\\bottomrule
-\end{tabular}
-
-\end{table}
-
-\begin{enumerate}
-    \item \textbf{Faults the compiler cannot see.} 63 of the 200 test programs in the \emph{logic} class (31.5\%) are
-    reported as clean by both rules, so their \emph{logic} recall is only \RuleLogicRecall\%. These are the inverted
-    clinical rules and the mismatched alert texts: the programs are well formed, well typed and unit-correct. The random
-    forest recovers them (\RFLogicRecall\% recall for \emph{logic}) using the pattern features, which count relational
-    operators that point the wrong way relative to the alert vocabulary nearby. Six \emph{logic} programs are still
-    taken for \emph{valid}.
-    \item \textbf{Cascades hide the root cause of lexical faults.} The ``most severe family'' rule is perfect on all six
-    semantic families, which is unsurprising because it implements the labelling rule. It fails on \emph{lexical}
-    programs: an unterminated string swallows the rest of its line, the parser then reports follow-on syntax errors, and
-    the priority rule, which ranks syntax above lexical, picks the symptom (73 of 200 programs). The ``first error''
-    rule gets these right more often because the lexical error is reported first, but it pays for that elsewhere.
-    \item \textbf{The first diagnostic is not always the root cause.} With two faults in the program, the ``first error''
-    rule is correct on only \RuleFirstDouble\% of them, against 96.2\% on single-fault programs; the random forest is correct on
-    \RFDouble\% of the two-fault programs.
-    \item \textbf{What remains.} The forest makes 17 errors on 2{,}000 programs: six \emph{logic} programs taken for
-    \emph{valid} (the soft faults above), five \emph{syntax} programs taken for \emph{lexical}, and six \emph{lexical}
-    programs assigned to a semantic family (one \emph{type}, three \emph{unit}, two \emph{phi}). The lexical--syntax
-    confusion is the same cascade ambiguity as before and is not fully resolved.
-\end{enumerate}
-
-None of this says that machine learning is better than a well-designed rule set \emph{for the faults the rules were
-written for}: on those, a precise analyser is already at 100\%. The gain is concentrated in the cases that a
-rule-based analyser misses or mislabels. It is also worth being clear about what the 99\% figure means. The test programs
-come from the same generator as the training programs, so the learned model is evaluated on an in-distribution
-sample; Section~5.8 discusses what that does and does not show.
-
-\paragraph{What the forest relies on.} Table~\ref{tab:topfeat} lists the most important features. The most important one by a
-wide margin is \code{worst\_family\_rank}, the compiler-derived rank of the most severe diagnostic family; the next ones are
-counts of individual diagnostic codes. In other words, the learned classifier is largely a learned post-processor of the
-compiler's output---which is what the architecture intends.
-
-\begin{table}[H]
-\centering
-\caption{Top-eight random-forest feature importances (mean decrease in impurity).}
-\label{tab:topfeat}
-\small
-\begin{tabular}{lr}
-\toprule
-\textbf{Feature} & \textbf{Importance}\\
-\midrule
-\texttt{worst\_family\_rank} & 0.142\\
-\texttt{diag\_DOM002} & 0.053\\
-\texttt{diag\_DOM001} & 0.051\\
-\texttt{first\_phase\_sem} & 0.048\\
-\texttt{diag\_SEM005} & 0.044\\
-\texttt{first\_fam\_type} & 0.043\\
-\texttt{diag\_DOM003} & 0.043\\
-\texttt{first\_fam\_name} & 0.039\\\bottomrule
-\end{tabular}
-
-\end{table}
-
-\subsection{Which Feature Groups Matter, and How Much Data Is Needed (E2)}
-
-Figure~\ref{fig:learning} and Table~\ref{tab:learning} show test macro-F1 of a random forest trained on four feature
-views with an increasing number of training programs per class (mean over five random draws).
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.62\textwidth]{figs/learning.pdf}
-\caption{Learning curves of the random forest for four feature views (mean $\pm$ standard deviation over five draws).}
-\label{fig:learning}
-\end{figure}
-
-\begin{table}[H]
-\centering
-\caption{Test macro-F1 by feature view and number of training programs per class.}
-\label{tab:learning}
-\small
-\resizebox{\textwidth}{!}{\input{tables/learning.tex}}
-\end{table}
-
-Three observations follow.
+Figure~\ref{fig:confusion} shows where the rules fall short.
 
 \begin{itemize}
-    \item \textbf{Surface features are not enough.} Token and tree statistics alone give a macro-F1 of only 0.14 with five
-    programs per class and 0.44 with 800. A forest cannot recover from raw counts what a unit checker or a taint analysis
-    computes. This is the strongest argument in the data for putting a real compiler front end underneath the learner.
-    \item \textbf{Diagnostics carry most of the signal; patterns add the rest.} The diagnostic features alone plateau at
-    0.967: they cannot see the soft logic faults. Adding the six pattern features lifts the curve to 0.994 at 800 programs per
-    class.
-    \item \textbf{More features are not better at small sample sizes.} The ``all features'' view is slightly \emph{worse}
-    than diagnostics$+$patterns at every size (0.884 versus 0.918 at five programs per class, 0.991 versus 0.994 at 800). The
-    token and tree features add 55 noisy dimensions that carry little information. We nevertheless kept the full 101-dimensional
-    vector for the experiments with the GAN, because it is the representation the deployed classifier uses; a leaner view would be
-    a reasonable simplification.
+    \item \textbf{Faults the compiler cannot see.} 63 of the 200 \emph{logic} test programs are reported clean by both
+    rules, so their logic recall is only \RuleLogicRecall\%. These are inverted rules and mismatched alert texts in
+    programs that are otherwise well formed and unit-correct. The forest gets \RFLogicRecall\% recall on logic, using the
+    pattern features.
+    \item \textbf{Cascades hide lexical root causes.} ``Most severe'' is perfect on the six semantic families, which is
+    expected since it is the labelling rule. It fails on lexical programs: an unterminated string swallows the rest of its
+    line, the parser then reports syntax errors, and the rule picks the symptom (73 of 200 programs).
+    \item \textbf{The first diagnostic is often not the root cause.} On two-fault programs ``first error'' is right only
+    \RuleFirstDouble\% of the time, against 96.2\% on single-fault ones. The forest gets \RFDouble\% of two-fault programs.
+    \item \textbf{What is left.} The forest makes 17 mistakes: six soft logic faults taken for valid, five syntax
+    programs taken for lexical, and six lexical programs put in a semantic family. The lexical/syntax confusion is the
+    same cascade problem and is not fully solved.
 \end{itemize}
 
-The scarce-data end of the curve is where it matters for the next experiment: with five labelled programs per class a forest
-reaches a macro-F1 of 0.88, and the question is whether synthetic records can close part of the gap to 0.99.
+So machine learning does not beat a well-built rule set on the faults the rules were written for; there the analyser
+is already at 100\%. The gain is in the cases the rules miss or mislabel. Also, the test programs come from the same
+generator as the training programs, so 99\% is an in-distribution number (see Section~\ref{sec:limits}). The forest's most important
+feature by far is \code{worst\_family\_rank} (importance 0.142), followed by counts of individual diagnostic codes such as
+\code{DOM002} and \code{DOM001}. The learned classifier is mostly a learned post-processor of the compiler's output,
+which is what the design intended.
 
+\subsection{Which Feature Groups Matter (E2)}
+
+\begin{table}[!htbp]
+\centering
+\caption{Random-forest test macro-F1 by feature view and training programs per class (mean of five draws).}
+\label{tab:learning}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+\textbf{Feature view} & \textbf{5} & \textbf{10} & \textbf{25} & \textbf{50} & \textbf{100} & \textbf{200} & \textbf{800}\\
+\midrule
+token+AST & 0.142 & 0.187 & 0.258 & 0.326 & 0.373 & 0.398 & 0.436\\
+diagnostics & 0.918 & 0.937 & 0.942 & 0.950 & 0.960 & 0.963 & 0.967\\
+diagnostics+patterns & 0.918 & 0.946 & 0.970 & 0.979 & 0.988 & 0.991 & 0.994\\
+all features & 0.884 & 0.926 & 0.950 & 0.969 & 0.983 & 0.988 & 0.991\\\bottomrule
+\end{tabular}
+
+\end{table}
+
+Table~\ref{tab:learning} gives three results. Token and tree statistics alone are weak: 0.14 macro-F1 with five programs
+per class and 0.44 with 800. A forest cannot rebuild from raw counts what a unit checker or a taint analysis computes,
+which is the clearest argument in the data for putting a real compiler under the learner. Diagnostics alone level off
+at 0.967 because they cannot see soft logic faults, and the six pattern features take that to 0.994. Finally, using all
+features is slightly worse than diagnostics plus patterns at every size (0.884 against 0.918 at five per class), since
+the 55 token and tree dimensions mostly add noise. We still kept the full vector for the GAN experiments because it is
+what the deployed classifier uses. With five labelled programs per class the forest is at 0.88, and the next question
+is whether synthetic records can close the gap to 0.99.
 
 % ============================================================
 % RESULTS (part B): GAN augmentation and GAN anomaly detection
 % ============================================================
 \subsection{Augmentation under Scarcity: Does the GAN Help? (E3)}
 
-This experiment asks the question that motivated the use of a GAN: if only a handful of real faulty programs are available
-per class, do synthetic feature vectors improve the classifier? Figure~\ref{fig:augment} and
-Tables~\ref{tab:augrf}--\ref{tab:augmlp} give the test macro-F1 of the seven regimes, averaged over ten seeds. The
-\emph{valid} class always has 400 real training programs.
+This is the experiment the GAN was there for: with only a handful of real faulty programs per class, do synthetic
+vectors help? Figure~\ref{fig:augment} and Table~\ref{tab:augrf} give test macro-F1 for the seven regimes over ten seeds.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textwidth]{figs/augment.pdf}
-\caption{Test macro-F1 against the number of real training programs per faulty class (mean $\pm$ standard deviation over ten
-seeds). Left: random forest. Right: MLP.}
+\includegraphics[width=0.9\textwidth]{figs/augment.pdf}
+\caption{Test macro-F1 against real training programs per faulty class (mean $\pm$ s.d. over ten seeds). Left: random
+forest. Right: MLP.}
 \label{fig:augment}
 \end{figure}
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
-\caption{Random forest: test macro-F1 (mean $\pm$ s.d., ten seeds) against the number of real programs per faulty class.
-Bold marks the best mean in each column.}
+\caption{Random forest: test macro-F1 (mean $\pm$ s.d., ten seeds) by real programs per faulty class. Bold is the best
+mean per column.}
 \label{tab:augrf}
 \small
 \resizebox{\textwidth}{!}{\input{tables/augment_rf.tex}}
 \end{table}
 
-\begin{table}[H]
+\paragraph{The short answer is no.} With the random forest the GAN is never the best method and is usually within noise
+of doing nothing: 0.944 against 0.942 at 20 programs per class, and worse at five (0.876 for BCE and 0.853 for WGAN-GP,
+against 0.888). The cheap methods do better. Gaussian jitter is best at every size up to 20 (0.928 against 0.888 at
+five), and SMOTE, oversampling and class weights give smaller gains. By 100 programs everything is within a point. For
+the MLP it is worse: GAN vectors cost 5 to 13 points of macro-F1, most at the smallest sizes (0.713 against 0.844 at
+five), probably because an MLP tries to fit every synthetic point where a forest can ignore some. Paired $t$-tests over
+the seeds show the GAN's difference from no augmentation is either indistinguishable from zero or slightly negative, and
+its difference from jitter and SMOTE is negative at every size.
+
+Almost all of the gain from augmentation comes from one class. Most classes are near their ceiling without help, but
+\emph{logic}, which has to be recognised largely from the six pattern features, goes from F1 0.52 with no augmentation to
+0.79 with jitter at five programs, while the BCE GAN gives 0.47. Augmentation here mostly works as a regulariser for the
+one hard class.
+
+\paragraph{Why the GAN fails.} For one seed at 20 programs per class we inspected the synthetic vectors
+(Table~\ref{tab:fidelity}). \emph{Label validity} is the share that an oracle forest trained on the full pool assigns to
+the requested class. \emph{NN distance} is the mean standardised distance to the nearest real training vector of that
+class; held-out real programs sit at \HeldoutNN{} for comparison.
+
+\begin{table}[!htbp]
 \centering
-\caption{MLP: same protocol as Table~\ref{tab:augrf}.}
-\label{tab:augmlp}
-\small
-\resizebox{\textwidth}{!}{\input{tables/augment_mlp.tex}}
-\end{table}
-
-\paragraph{The short answer is no.} With the random forest, the conditional GAN is never the best method and is usually
-within noise of using no augmentation at all: at 20 real programs per class the BCE version scores 0.944 against 0.942 without
-augmentation, and at 5 programs it is \emph{worse} (0.876 and 0.853 for the BCE and WGAN-GP versions, against 0.888). The
-cheap alternatives help more. Gaussian jitter is the best method at every size up to 20 programs per class (0.928 against
-0.888 at five programs), and SMOTE, random oversampling and class weights also give small gains. By 100 programs per class
-all methods are within one point of each other. For the MLP the picture is worse for the GAN: its synthetic vectors cost
-between 5 and 13 points of macro-F1 relative to no augmentation, with the largest damage at the smallest sizes
-(0.713 against 0.844 at five programs per class), presumably because the MLP, unlike a forest, tries to fit every synthetic point.
-
-Table~\ref{tab:augtests} gives paired comparisons over the ten seeds. The difference between the GAN and \emph{no augmentation}
-is small and, depending on the size, indistinguishable from zero or slightly negative; the difference from jitter and SMOTE is
-negative at every size. The $p$-values are uncorrected for the 30 comparisons shown, so they should be read as a rough guide.
-
-\begin{table}[H]
-\centering
-\caption{Paired difference in macro-F1 (random forest) between each GAN and three alternatives, with the two-sided
-paired $t$-test $p$-value in parentheses. Negative values mean the GAN is worse.}
-\label{tab:augtests}
-\small
-\resizebox{\textwidth}{!}{\input{tables/augment_tests.tex}}
-\end{table}
-
-\paragraph{Where the benefit of augmentation lies.} Figure~\ref{fig:augclass} breaks the result down by class for 20 real
-programs per class. Most classes are already close to their ceiling without help. The exception is \emph{logic}, the family whose
-members are partly invisible to the compiler and have to be recognised from the six pattern features: with five real programs
-its F1 is 0.52 without augmentation, 0.79 with jitter, 0.70 with SMOTE and 0.47 with the BCE GAN; at 20 programs the values are
-0.82, 0.93, 0.86 and 0.85. Augmentation in this setting is mostly a regulariser for the one hard class. The valid class
-gains as a side effect, because fewer logic programs are mistaken for it.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{figs/augment_perclass.pdf}
-\caption{Per-class F1 of the random forest with 20 real programs per faulty class (mean of ten seeds).}
-\label{fig:augclass}
-\end{figure}
-
-\paragraph{Why the GAN fails: fidelity of the synthetic vectors.} For one seed at 20 programs per class we checked
-the synthetic vectors directly (Table~\ref{tab:fidelity}). \emph{Label validity} is the fraction of synthetic vectors that an
-oracle random forest, trained on the full 8{,}000-program pool, assigns to the class the generator was asked for. \emph{NN distance}
-is the mean standardised distance to the nearest real training vector of that class; for reference, held-out \emph{real}
-programs of the same classes lie at a mean distance of \HeldoutNN{} from their nearest training example.
-
-\begin{table}[H]
-\centering
-\caption{Fidelity of synthetic vectors (seed 0, 20 real programs per faulty class). Label validity for the three resampling methods is
-high by construction: their points lie on or next to real training vectors that the oracle has itself seen.}
+\caption{Fidelity of synthetic vectors (seed 0, 20 real programs per faulty class). Resampling methods score high on
+label validity by construction, since their points sit on or next to real vectors.}
 \label{tab:fidelity}
 \small
 \begin{tabular}{lrrr}
@@ -1423,323 +835,142 @@ cGAN (WGAN-GP) & 0.043 & 10.80 & 0.0\\\bottomrule
 
 \end{table}
 
-The result is stark. Only 4\% of the GAN's vectors are recognised as belonging to the requested class, which is below the
-10\% expected from a classifier guessing among ten classes; the GAN vectors are also \emph{further} from the training data than genuinely
-new real programs are. In other words, the generator has not learned the class-conditional structure. Figure~\ref{fig:pca} shows the same thing
-in two dimensions: the synthetic points (crosses) spread over the whole cloud of all classes instead of concentrating where the real
-examples of the requested class lie, although a two-dimensional projection of mostly discrete count features is only a rough picture.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{figs/gan_pca.pdf}
-\caption{PCA projection of real (circles) and GAN-generated (crosses) vectors for four classes, with all other real vectors in grey
-(a GAN trained on 100 real programs per class).}
-\label{fig:pca}
-\end{figure}
-
-We examined one likely cause. In the experiment above, mini-batches were drawn uniformly from the training set, which is dominated by the
-400 \emph{valid} programs, so each rare class contributed only a few percent of the batches and the generator may have learned to ignore its
-class input. We repeated the experiment (five seeds, 20 real programs per class) with class-balanced mini-batches, in which a class is chosen
-first and an example second. Table~\ref{tab:gandiag} shows the outcome: label validity rises from roughly 4\% to 11--13\%, which is
-about chance level, and macro-F1 does not improve. The imbalance in the batches therefore explains part of the failure but not the
-rest. The remaining explanation is the one the numbers suggest: with 20 examples per class in a 101-dimensional space of counts,
-a small unregularised GAN has too little to learn from, and a continuous generator blurs features that carry discrete, tightly coupled
-meaning (for example, a diagnostic count of one for exactly one code). This follows the pattern commonly reported for GANs trained on very small tabular data, and it is a
-limit of our setup rather than a general statement about GANs. We did not test architectures designed for tabular data, such as CTGAN
-\cite{xu2019}, or any hyper-parameter search.
-
-\begin{table}[H]
-\centering
-\caption{Effect of class-balanced mini-batches on the GAN (20 real programs per faulty class; mean $\pm$ s.d. over five seeds).
-Label validity of about 0.10 is chance level.}
-\label{tab:gandiag}
-\small
-\begin{tabular}{llcc}
-\toprule
-\textbf{Model} & \textbf{Mini-batches} & \textbf{Label validity} & \textbf{Macro-F1}\\
-\midrule
-cGAN (BCE) & uniform & 0.039\,$\pm$\,0.023 & 0.944\,$\pm$\,0.011\\
-cGAN (WGAN-GP) & uniform & 0.045\,$\pm$\,0.005 & 0.944\,$\pm$\,0.008\\
-cGAN (BCE) & class-balanced & 0.110\,$\pm$\,0.011 & 0.943\,$\pm$\,0.009\\
-cGAN (WGAN-GP) & class-balanced & 0.126\,$\pm$\,0.009 & 0.935\,$\pm$\,0.010\\\bottomrule
-\end{tabular}
-
-\end{table}
-
-\paragraph{What the GAN is and is not good for here.} One property is worth noting: none of the synthetic vectors is an exact copy of a
-real one (0\% exact copies in Table~\ref{tab:fidelity}), whereas random oversampling copies by definition. If privacy were the
-goal, that would matter; but a synthetic set that does not carry the class signal is no use as training data either. Our
-evidence supports a narrow conclusion: \emph{in this setting, with these model sizes and this amount of data, simple resampling
-is the better way to handle rare error classes.}
+Only 4\% of GAN vectors are recognised as the requested class, below the 10\% you would get by guessing, and they lie
+further from the training data than new real programs do. The generator did not learn the class structure. One likely
+cause was that mini-batches were dominated by the 400 valid programs, so we reran with class-balanced batches (five
+seeds). Label validity rose to 11 to 13\%, about chance, and macro-F1 did not improve. The rest of the explanation is the
+obvious one: 20 examples per class in a 101-dimensional space of counts is too little for a small unregularised GAN, and
+a continuous generator blurs features with discrete, tightly linked meaning (a count of exactly one for exactly one
+code). This is a limit of our setup, not a verdict on GANs; we did not try tabular models such as CTGAN~\cite{xu2019} or
+any tuning. In this setting, simple resampling is the better way to handle rare error classes.
 
 \subsection{GAN-Based Anomaly Detection (E4)}
 
-The second use of a GAN is to detect faulty programs when no faulty examples are available at all. A GAN is trained on the 800 valid
-training programs; the negated discriminator output is the anomaly score. Table~\ref{tab:anomaly} and Figure~\ref{fig:anomaly}
-give the AUROC of each detector separating the 200 valid test programs from the 200 programs of each faulty family.
+The second use of a GAN is to find faulty programs when no faulty examples exist at all. Table~\ref{tab:anomaly} gives
+the AUROC of each detector, trained on valid programs only, for separating valid test programs from each fault family.
 
-\begin{figure}[H]
+\begin{table}[!htbp]
 \centering
-\includegraphics[width=\textwidth]{figs/anomaly.pdf}
-\caption{AUROC of five detectors for valid versus faulty programs, by fault family (dashed line: chance).}
-\label{fig:anomaly}
-\end{figure}
-
-\begin{table}[H]
-\centering
-\caption{AUROC of valid-versus-faulty detection by fault family. All detectors except the compiler flag were trained on
-valid programs only.}
+\caption{AUROC of valid-versus-faulty detection by fault family.}
 \label{tab:anomaly}
 \small
 \resizebox{\textwidth}{!}{\input{tables/anomaly.tex}}
 \end{table}
 
-The numbers need careful reading, because the headline is easy to over-interpret.
-
 \begin{itemize}
-    \item \textbf{The BCE discriminator is an excellent detector, but most of that is easy.} It reaches an AUROC of 0.998 over all faults. However,
-    49 of the 101 features, including \emph{all} 40 diagnostic features, are constant on valid programs: a valid program reports no diagnostic. Any
-    model that looks at those features can therefore tell a program with an error from one without. The compiler's own ``at least one error'' flag
-    achieves 1.000 on every family except \emph{logic}, and it is a far simpler detector.
-    \item \textbf{The informative column is \emph{logic}.} There the compiler flag falls to 0.843 (the soft faults raise no diagnostic), the one-class
-    SVM reaches 0.715, and the BCE discriminator 0.981. To check that this is not a lucky seed, we retrained the discriminator with five seeds
-    (Table~\ref{tab:anomalycheck}): the logic AUROC is 0.97--0.99 each time. It depends, however, on the pattern features: without them it drops to
-    0.83--0.87, and the pattern features alone give only 0.60--0.69. So the discriminator's advantage comes from combining the
-    compiler-derived signals with the pattern signal that valid programs never exhibit, and the pattern features were written with this fault in mind.
-    \item \textbf{Isolation Forest is at chance (0.47).} We first suspected that it ignores the diagnostic features because they have zero range on the
-    training data, so a random split cannot use them. Removing the constant features altogether changes nothing (0.473 to 0.475), which is consistent with that
-    explanation: among the features that do vary, faulty programs look like valid ones.
-    \item \textbf{The WGAN-GP critic fails.} Its AUROC is 0.37, \emph{below} chance: faulty programs receive a higher critic value than valid ones. A critic is
-    trained to separate real from generated samples, not to model density, and outside the data it extrapolates. Negating the score would give about 0.63, but we report the
-    score as defined in advance, not a sign chosen after seeing the result.
+    \item \textbf{The BCE discriminator scores 0.998 overall, but most of that is easy.} 49 of the 101 features,
+    including all 40 diagnostic ones, are constant on valid programs because a valid program has no diagnostics. The
+    compiler's own ``at least one error'' flag gets 1.000 on every family except logic.
+    \item \textbf{The column that matters is logic.} There the compiler flag drops to 0.843, the one-class SVM gets 0.715,
+    and the BCE discriminator 0.981. Over five retraining seeds it stays between 0.97 and 0.99. Without the pattern
+    features it falls to 0.83 to 0.87, and the pattern features alone give 0.60 to 0.69, so the discriminator wins by
+    combining the two signals.
+    \item \textbf{Isolation Forest sits at chance (0.47)}, even after removing the constant features: among the features
+    that do vary, faulty programs look like valid ones.
+    \item \textbf{The WGAN-GP critic fails at 0.37}, below chance. A critic learns to separate real from generated
+    samples, not to model density, and it extrapolates badly off the data. Flipping the sign would give about 0.63, but we
+    report the score as defined before seeing the result.
 \end{itemize}
 
-\begin{table}[H]
-\centering
-\caption{Stability and ablation of the BCE discriminator as anomaly detector (five seeds, mean $\pm$ s.d.).}
-\label{tab:anomalycheck}
-\small
-\begin{tabular}{lcc}
-\toprule
-\textbf{Discriminator input} & \textbf{AUROC, logic} & \textbf{AUROC, all faults}\\
-\midrule
-All 101 features & 0.978\,$\pm$\,0.008 & 0.996\,$\pm$\,0.003\\
-Without pattern features & 0.844\,$\pm$\,0.015 & 0.982\,$\pm$\,0.001\\
-Pattern features only & 0.620\,$\pm$\,0.034 & 0.521\,$\pm$\,0.025\\\bottomrule
-\end{tabular}
-
-\end{table}
-
-The practical reading is modest. A GAN discriminator trained only on valid programs is a usable \emph{unsupervised} detector of the one family that the compiler
-misses, but it is not better than the compiler on the families the compiler handles, and its result is only as good as the features it sees.
+So a discriminator trained only on valid programs is a usable unsupervised detector for the one family the compiler
+misses. It is not better than the compiler on the families the compiler handles.
 
 % ============================================================
 % RESULTS (part C): compiler performance, case studies, validity
 % ============================================================
-\subsection{Compiler Performance and Optimisation (E5)}
+\subsection{Compiler Performance and Worked Examples (E5)}
 
-\paragraph{Scaling.} Table~\ref{tab:scaling} and Figure~\ref{fig:scaling} show the median compilation time for valid
-programs of 46 to 12{,}016 lines (up to 88{,}000 tokens). A linear fit of total time against program size gives
-\MsPerKloc{} ms per thousand lines ($R^2=\ScaleRSq$), so a 40-line program---the size of the corpus programs---compiles in
-a few milliseconds. The log--log slope over the larger sizes is \ScaleSlope, i.e., growth is slightly worse than linear, and the
-table shows where: the semantic phase, which takes roughly a quarter of the time for programs up to about 800 lines, accounts for more
-than half of the total (53\%) at 12{,}000 lines. The reason is a known inefficiency of our implementation: every \code{if} copies the flow state
-(the sets of assigned variables and facts), which grows with the number of top-level declarations, so a long flat program
-pays a cost proportional to its size at every branch. Sharing the sets structurally between branches would remove this; at
-the sizes of real clinical scripts it does not matter.
+For valid programs from 46 to 12{,}016 lines, a linear fit of total compile time against size gives \MsPerKloc{} ms per
+thousand lines ($R^2=\ScaleRSq$), so a 40-line corpus program compiles in a few milliseconds. The log-log slope at large
+sizes is \ScaleSlope, a little worse than linear. The cause is the semantic phase: it takes about a quarter of the time up
+to 800 lines but 53\% at 12{,}000 lines, because every \code{if} copies the flow state, which grows with the number of
+top-level declarations. Sharing those sets between branches would fix it, and at the size of real clinical scripts it
+does not matter.
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.62\textwidth]{figs/scaling.pdf}
-\caption{Median compilation time per phase against program size (log--log).}
-\label{fig:scaling}
-\end{figure}
+Across 300 generated programs the optimiser removed on average \OptMean\% of the three-address instructions (maximum
+\OptMax\%), and the original and optimised code produced identical output on ten random inputs every time
+(\OptMismatch{} mismatches in \OptPrograms{} programs). Generated programs have little redundancy, so the gain is modest.
+On a demo program with constant arithmetic, the optimiser folds the constants, shares a repeated product
+\code{per\_kg * weight} and deletes a dead branch, going from 18 instructions to 11. It still leaves a jump to the next
+label (there is no peephole pass) and does not propagate across labels; neither affects correctness.
 
-\begin{table}[H]
-\centering
-\caption{Median time per phase in milliseconds, and IR size before and after optimisation.}
-\label{tab:scaling}
-\small
-\resizebox{\textwidth}{!}{\input{tables/scaling.tex}}
-\end{table}
-
-\paragraph{Optimisation.} Over 300 generated valid programs the optimiser removed on average \OptMean\% of the
-three-address instructions (maximum \OptMax\%). On every one of them, running the original and the optimised code on ten
-random inputs produced identical output events (\OptMismatch{} mismatches in \OptPrograms{} programs). The generated programs
-are written the way a person would write them and contain little redundancy, so the gain is modest. Programs with constant
-arithmetic show more. For the program in Listing~\ref{lst:fold}, the optimiser folds the two constants, shares the repeated
-product \code{per\_kg * weight}, and deletes the dead branch, reducing 18 instructions to 11 (39\%).
-
-\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize,caption={Three-address code of \texttt{examples/fold\_demo.med} before (left column of rows) and after optimisation.},label={lst:fold}]
- before                            |  after
- t1 = 2 * 400.0                    |  LIMIT = 800.0
- LIMIT = t1                        |  margin@1 = 750.0
- t2 = LIMIT - 50.0                 |  t3 = 12.0 * weight
- margin@1 = t2                     |  a@3 = t3
- per_kg@2 = 12.0                   |  b@4 = t3          (CSE)
- t3 = per_kg@2 * weight            |  goto L1           (dead branch)
- a@3 = t3                          |  L1:
- t4 = per_kg@2 * weight            |  t7 = a@3 + b@4
- b@4 = t4                          |  t8 = t7 + margin@1
- t5 = 1 > 2                        |  param t8
- ifFalse t5 goto L1                |  t9 = call print, 1
- param 'never printed'             |
- t6 = call print, 1                |
- L1:                               |
- t7 = a@3 + b@4                    |
- t8 = t7 + margin@1                |
- param t8                          |
- t9 = call print, 1                |
-\end{lstlisting}
-
-The listing also shows two limits of the optimiser. A jump to the immediately following label is left behind (no peephole
-pass), and propagation stops at labels, so \code{margin@1} is not substituted into \code{t8}. Both are
-straightforward extensions and neither affects correctness.
-
-\subsection{Worked Examples}
-
-The command-line tool prints the compiler's diagnostics and, below them, the classifier's estimate of the root-cause family.
-Listing~\ref{lst:phi} shows a program with four independent faults: PHI concatenated into output, a temperature
-threshold with the decimal point dropped (reported twice, once by the range-of-input check and once by the plausibility check), and
-a dose added to a weight. The classifier ranks \emph{phi} first, in agreement with the root-cause priority.
+The command-line tool prints the compiler's diagnostics followed by the classifier's root-cause estimate.
+Listing~\ref{lst:phi} shows a program with four faults: PHI concatenated into output, a temperature threshold missing
+its decimal point (caught by both the range and the plausibility check), and a dose added to a weight. The classifier
+ranks \emph{phi} first, which matches the root-cause priority.
 
 \begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\scriptsize,caption={Output of \texttt{medcheck.py examples/phi\_leak.med}.},label={lst:phi}]
 == examples/phi_leak.med: 100 tokens, 4 error(s), 0 warning(s)
   12:19: error DOM002: protected health information reaches print() without anonymize()
-      | print("patient: " + patient_name);
   13:10: error DOM001: comparison against 380, outside the declared range [30, 43] of 'temp'
-      | if (temp > 380 degC) {
   13:12: error DOM001: value 380 degC is outside the plausible range [20.0, 45.0] degC
-      | if (temp > 380 degC) {
   16:12: error SEM005: unit mismatch: [mg] + [kg]
-      | print(dose + weight);
 == learned root-cause estimate: phi 0.80, range 0.11, lexical 0.06
 \end{lstlisting}
 
-Listing~\ref{lst:syn} shows recovery from two syntax faults. The missing semicolon is reported at the end of the line
-where it belongs, not at the \code{if} that exposed it, and parsing continues, so the missing parenthesis on the next line is also
-found. Because syntax errors were reported, the semantic phase did not run.
+The more interesting case is a program the compiler has nothing to say about. In the example file
+\texttt{inverted\_rule.med} the fever rule reads \code{if (temp < 38.0 degC)}. It compiles without a single
+diagnostic, and the forest still puts it in \emph{logic} with probability 0.77 (valid 0.20). The tool prints a note
+that the front end found no error but the classifier suspects a clinical-logic fault. It is worded as a suspicion
+because it is an estimate from a model trained on synthetic faults, not a proof.
 
-\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\scriptsize,caption={Output of \texttt{medcheck.py examples/syntax\_errors.med}.},label={lst:syn}]
-== examples/syntax_errors.med: 44 tokens, 2 error(s), 0 warning(s)
-  5:25: error SYN001: expected ';' but found 'if'
-      | let fever = temp > 38.0 degC
-  6:23: error SYN001: expected ')' but found '{'
-      | if (fever && hr > 100 bpm {
-== learned root-cause estimate: syntax 0.99, lexical 0.01, valid 0.00
-\end{lstlisting}
-
-The most interesting case is the one in which the compiler has nothing to say. In the file
-\texttt{examples/\allowbreak inverted\_\allowbreak rule.med} the fever rule reads \code{if (temp < 38.0 degC)} and prints an alert called \emph{fever}. It compiles without a single
-diagnostic. The tool then adds the line produced by the classifier, shown in Listing~\ref{lst:inv}: the forest assigns the program
-to \emph{logic} with probability 0.77 and flags that the rule-based front end found nothing. This is a probability estimate from
-a model trained on synthetic faults, not a proof, and the tool says so by wording it as a suspicion.
-
-\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\scriptsize,caption={Output of \texttt{medcheck.py examples/inverted\_rule.med}.},label={lst:inv}]
-== examples/inverted_rule.med: 50 tokens, 0 error(s), 0 warning(s)
-== learned root-cause estimate: logic 0.77, valid 0.20, name 0.02
-   note: the rule-based front end found no error, but the classifier suspects a 'logic'
-         fault (possible clinical-logic error)
-\end{lstlisting}
-
-\subsection{Threats to Validity and Limitations}
-
-We want to be explicit about what these results do and do not establish.
+\subsection{Threats to Validity}
+\label{sec:limits}
 
 \begin{itemize}
-    \item \textbf{Synthetic corpus, in-distribution test.} Training and test programs come from the same generator, built from
-    the same sixteen blocks and mutated by the same operators. The near-perfect accuracy therefore measures how well the
-    classifier has learned \emph{this} generator's faults. It says little about hand-written MedScript programs, and nothing at all
-    about real clinical code in other languages. A study on real faulty scripts would be the real test.
-    \item \textbf{The labels are defined by the injection.} A program's label is whatever fault we injected (with a documented priority
-    for two faults). We checked that each fault manifests in the compiler, but not that a human reviewer would call it the root
-    cause.
-    \item \textbf{The strong rule baseline shares the labelling rule.} The ``most severe family'' rule is, by construction, the
-    labelling rule applied to diagnostics. Its 100\% accuracy on the semantic families is therefore partly circular; its failures
-    (cascading lexical faults, invisible logic faults) are the informative part.
-    \item \textbf{The soft-fault detector uses a hand-written vocabulary.} The pattern features rely on a list of alert words. A
-    program that names its alerts differently would defeat them. The classifier learns a statistical regularity of the generated
-    programs, not clinical knowledge.
-    \item \textbf{Scope of the experiment grid.} The range of scarcity levels in the GAN experiment was widened after a preliminary run on a
-    separate, smaller corpus (different random seed), in which the GAN showed no advantage at five to twenty examples per class.
-    Hyper-parameters of all methods were fixed beforehand and not tuned on the test set; they were also not tuned at all, so a
-    better-tuned GAN could do better than reported.
-    \item \textbf{Language and tooling.} MedScript is a small DSL, implemented in Python for clarity rather than speed.
+    \item \textbf{Synthetic, in-distribution test.} Training and test programs come from the same generator and the same
+    operators. The near-perfect accuracy shows how well the classifier learned this generator's faults. It says little
+    about hand-written MedScript and nothing about real clinical code.
+    \item \textbf{Labels come from the injection.} We checked that each fault shows up in the compiler, not that a human
+    would call it the root cause. The ``most severe'' baseline is the labelling rule applied to diagnostics, so its 100\%
+    on semantic families is partly circular.
+    \item \textbf{Hand-written vocabulary.} The pattern features depend on a list of alert words, and a program that names
+    its alerts differently would get past them.
+    \item \textbf{No tuning.} Hyper-parameters were fixed in advance and never tuned, so a better-tuned GAN might do better.
+    The scarcity range in E3 was widened after a pilot run on a separate, smaller corpus.
 \end{itemize}
-
-
-\subsection{Summary of Findings}
-
-\begin{enumerate}
-    \item A purpose-built front end with clinical semantics detects, with 100\% recall, the faults it was designed for, and the learned classifier
-    adds value mainly where the rules are blind (soft logic faults) or ambiguous (cascades, multiple faults): \RuleFirstAcc\% and \RulePrioAcc\% for the two rule baselines against
-    \RFAcc\% for the forest.
-    \item The information that matters is computed by the compiler. Token and tree statistics alone reach a macro-F1 of 0.44 with 800 programs per class.
-    \item Conditional GANs trained on the feature vectors did \emph{not} improve classification with scarce data. Gaussian jitter and SMOTE were better, and
-    the GAN's synthetic vectors were mostly not recognisable as the class they were meant to represent.
-    \item A GAN discriminator trained on valid programs detects soft logic faults well (AUROC about 0.98), but its performance on other families is
-    trivially explained by the diagnostic features, and the WGAN-GP critic was unusable for this purpose.
-    \item The compiler is fast enough for interactive use (\MsPerKloc{} ms per thousand lines) and its optimiser preserved behaviour on all tested programs.
-\end{enumerate}
-
-\newpage
 
 % ============================================================
 % CONCLUSION
 % ============================================================
 \section{Conclusion and Future Work}
 
-\subsection{Conclusion}
+We set out to build a compiler for medical data-processing programs that understands the domain, plus a learned
+component that classifies errors and uses a GAN to cope with scarce labelled data. The first two parts worked. The third
+did not.
 
-We set out to build an intelligent compiler for medical data-processing programs: a front end that understands the
-constraints of the domain, plus a learned component that classifies errors and uses a GAN to cope with scarce labelled
-data. The first two parts worked as intended; the third did not.
+The MedScript compiler has the usual phases (scanner, recursive-descent parser with error recovery, semantic analyser,
+three-address code, optimiser) and a semantic phase extended with checks that matter in healthcare: units through
+dimension vectors, physiological plausibility through intervals, taint tracking of patient identifiers, flow-sensitive
+handling of optional values, definite assignment and division by zero. All 38 unit tests pass, the optimiser preserved
+behaviour on all 300 tested programs, and compilation runs at about \MsPerKloc{} ms per thousand lines.
 
-The compiler for MedScript implements the usual phases---scanner, recursive-descent parser with insertion and panic-mode recovery,
-semantic analyser, three-address code, optimiser---and extends the semantic phase with checks that matter in healthcare:
-unit-of-measure checking by dimension vectors, physiological plausibility by interval reasoning, taint tracking of protected
-health information, flow-sensitive handling of optional values, definite assignment, and division-by-zero detection. All of the
-38 unit tests pass, and on 300 generated programs the optimiser preserved observable behaviour on random inputs in every case. Compilation
-time grows roughly linearly with program size at about \MsPerKloc{} ms per thousand lines.
+A random forest over 101 compiler-derived features reached \RFAcc\% accuracy on 2{,}000 held-out programs, against
+\RuleFirstAcc\% and \RulePrioAcc\% for the two rule baselines. The gain comes from faults with no diagnostic (inverted
+clinical rules) and from programs where cascades or a second fault make the first message misleading. Surface features
+alone reach only 0.44 macro-F1, so the learner is only as useful as the compiler underneath it.
 
-For classification, a random forest over 101 compiler-derived features reached \RFAcc\% accuracy on 2{,}000 held-out programs, against
-\RuleFirstAcc\% and \RulePrioAcc\% for two rule-based baselines. The gain comes from two situations that rules handle poorly: faults that
-produce no diagnostic (inverted clinical rules), and programs in which cascades or several faults make the first diagnostic
-misleading. The learning curves show that surface features of the source text are nearly useless on their own (macro-F1 0.44), so
-the value of the learner depends on the compiler beneath it.
+The GAN result is negative, and we think that is worth reporting. With 5 to 100 real programs per faulty class,
+conditional GANs gave nothing over no augmentation for a random forest and a clear loss for an MLP, while Gaussian jitter
+and SMOTE gained up to four points. Only about 4\% of GAN samples looked like the class they were meant to be. A GAN
+discriminator trained on valid programs did turn out to be a good detector of the faults the compiler misses (AUROC about
+0.98), which is a narrower use than the one we started with. All of these numbers come from a synthetic corpus and should
+be read that way.
 
-The GAN result is negative, and we think it is more useful reported than hidden. With 5 to 100 real programs per faulty class, conditional
-GANs (BCE and WGAN-GP) gave no improvement over no augmentation for a random forest and a clear loss for an MLP, while Gaussian
-jitter and SMOTE gave gains of up to four points of macro-F1. A direct check of the synthetic vectors explains why: they were recognised as the requested class
-only about 4\% of the time, and class-balanced training batches raised that only to chance level. A GAN discriminator trained on valid programs did
-turn out to be a good unsupervised detector of the faults the compiler misses (AUROC about 0.98), but that is a narrower use than the one the project began with.
-
-\textbf{Limitations.} The corpus is generated, and the test programs come from the same generator as the training programs, so the accuracy figures describe the
-generator's faults rather than the faults of real clinical code. The pattern features rely on a hand-written vocabulary. MedScript is a small DSL, not a language
-that clinical programmers use today. The optimiser is deliberately simple. These limits are discussed in Section~5.8.
-
-\subsection{Future Work}
-
-\begin{itemize}
-    \item \textbf{Real data.} Evaluate on hand-written MedScript programs written by people who did not see the generator, and, more ambitiously, port the
-    checks (units, PHI taint, optional values) to a mainstream clinical-scripting language such as Python or R through an AST-based analyser.
-    \item \textbf{Better generative models.} Try tabular generators such as CTGAN with proper handling of discrete features, pretrain on the abundant
-    valid class, and generate \emph{programs} rather than feature vectors, for instance by training a model over the mutation operators, so that synthetic examples can also be compiled and checked.
-    \item \textbf{Learned localisation.} Predict not only the error family but the line at which a soft fault such as an inverted comparison occurs, for example with a
-    graph neural network over the syntax tree.
-    \item \textbf{Richer semantics.} Add implicit unit conversion with checked conversion factors, interval analysis through loops, inter-procedural taint with function
-    summaries, and a three-valued treatment of missing values.
-    \item \textbf{A stronger back end.} Global value numbering, propagation across basic blocks, and code generation to a real target such as LLVM IR, so that the pipeline is
-    complete from source to machine code.
-    \item \textbf{Human evaluation.} Study whether the root-cause estimate shortens the time a developer needs to find a fault compared with raw diagnostics.
-\end{itemize}
-
-\newpage
+\paragraph{Future work.} The most important next step is real data: hand-written MedScript from people who never saw the
+generator, and a port of the unit, PHI and missing-value checks to Python or R through an AST-based analyser. On the
+learning side, tabular generators such as CTGAN with proper handling of discrete features are worth trying, as is
+generating programs instead of feature vectors so that synthetic examples can be compiled and checked. Other directions
+are locating the line of a soft fault with a graph model over the syntax tree, implicit unit conversion and
+inter-procedural taint, a stronger back end targeting LLVM IR, and a user study on whether the root-cause estimate
+actually helps developers find faults faster.
 
 % ============================================================
 % REFERENCES
 % ============================================================
+\small
 \begin{thebibliography}{99}
+\setlength{\itemsep}{1pt}
 
 \bibitem{aho2006}
 A. V. Aho, M. S. Lam, R. Sethi, and J. D. Ullman,
@@ -1751,11 +982,6 @@ K. D. Cooper and L. Torczon,
 \textit{Engineering a Compiler},
 2nd ed., Morgan Kaufmann, 2011.
 
-\bibitem{appel1998}
-A. W. Appel,
-\textit{Modern Compiler Implementation in ML},
-Cambridge University Press, 1998.
-
 \bibitem{grune2008}
 D. Grune and C. J. H. Jacobs,
 \textit{Parsing Techniques: A Practical Guide},
@@ -1765,11 +991,6 @@ D. Grune and C. J. H. Jacobs,
 M. G. Burke and G. A. Fisher,
 ``A practical method for LR and LL syntactic error diagnosis and recovery,''
 \textit{ACM Transactions on Programming Languages and Systems}, vol. 9, no. 2, pp. 164--197, 1987.
-
-\bibitem{pierce2002}
-B. C. Pierce,
-\textit{Types and Programming Languages},
-MIT Press, 2002.
 
 \bibitem{nielson1999}
 F. Nielson, H. R. Nielson, and C. Hankin,
@@ -1801,20 +1022,10 @@ Mars Climate Orbiter Mishap Investigation Board,
 \textit{Phase I Report},
 NASA, November 1999.
 
-\bibitem{hindle2012}
-A. Hindle, E. T. Barr, Z. Su, M. Gabel, and P. Devanbu,
-``On the naturalness of software,''
-in \textit{Proc. 34th International Conference on Software Engineering (ICSE)}, 2012, pp. 837--847.
-
 \bibitem{allamanis2018}
 M. Allamanis, E. T. Barr, P. Devanbu, and C. Sutton,
 ``A survey of machine learning for big code and naturalness,''
 \textit{ACM Computing Surveys}, vol. 51, no. 4, article 81, 2018.
-
-\bibitem{allamanis2018graphs}
-M. Allamanis, M. Brockschmidt, and M. Khademi,
-``Learning to represent programs with graphs,''
-in \textit{Proc. International Conference on Learning Representations (ICLR)}, 2018.
 
 \bibitem{gupta2017}
 R. Gupta, S. Pal, A. Kanade, and S. Shevade,
@@ -1861,20 +1072,10 @@ L. Xu, M. Skoularidou, A. Cuesta-Infante, and K. Veeramachaneni,
 ``Modeling tabular data using conditional GAN,''
 in \textit{Advances in Neural Information Processing Systems 32}, 2019.
 
-\bibitem{antoniou2017}
-A. Antoniou, A. Storkey, and H. Edwards,
-``Data augmentation generative adversarial networks,''
-arXiv:1711.04340, 2017.
-
 \bibitem{chawla2002}
 N. V. Chawla, K. W. Bowyer, L. O. Hall, and W. P. Kegelmeyer,
 ``SMOTE: Synthetic minority over-sampling technique,''
 \textit{Journal of Artificial Intelligence Research}, vol. 16, pp. 321--357, 2002.
-
-\bibitem{he2009}
-H. He and E. A. Garcia,
-``Learning from imbalanced data,''
-\textit{IEEE Transactions on Knowledge and Data Engineering}, vol. 21, no. 9, pp. 1263--1284, 2009.
 
 \bibitem{schlegl2017}
 T. Schlegl, P. Seeb\"ock, S. M. Waldstein, U. Schmidt-Erfurth, and G. Langs,
@@ -1926,191 +1127,6 @@ S. S. Muchnick,
 \textit{Advanced Compiler Design and Implementation},
 Morgan Kaufmann, 1997.
 
-\bibitem{lattner2004}
-C. Lattner and V. Adve,
-``LLVM: A compilation framework for lifelong program analysis and transformation,''
-in \textit{Proc. International Symposium on Code Generation and Optimization (CGO)}, 2004, pp. 75--88.
-
 \end{thebibliography}
-
-\newpage
-
-% ============================================================
-% APPENDICES
-% ============================================================
-\appendix
-\section{MedScript Grammar}
-
-The grammar below is the one implemented by the recursive-descent parser. Terminals are in quotes; \code{ID},
-\code{NUM}, \code{STR} and \code{UNIT} are token classes.
-
-\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize]
-program    = { decl } ;
-decl       = inputDecl | constDecl | funcDecl | stmt ;
-inputDecl  = "input" ID ":" type [ "phi" ]
-             [ "range" "(" signedNum "," signedNum ")" ] ";" ;
-constDecl  = "const" ID ":" type "=" expr ";" ;
-funcDecl   = "func" ID "(" [ param { "," param } ] ")" "->" type block ;
-param      = ID ":" type ;
-type       = ( "int" | "float" | "bool" | "string" | unitType ) [ "?" ] ;
-unitType   = unitTerm { ( "*" | "/" ) unitTerm } ;
-unitTerm   = UNIT [ "^" NUM ] ;
-
-stmt       = letStmt | ifStmt | whileStmt | returnStmt | assignStmt
-           | exprStmt | block ;
-letStmt    = "let" ID [ ":" type ] [ "=" expr ] ";" ;
-assignStmt = ID "=" expr ";" ;
-ifStmt     = "if" "(" expr ")" block [ "else" ( ifStmt | block ) ] ;
-whileStmt  = "while" "(" expr ")" block ;
-returnStmt = "return" [ expr ] ";" ;
-exprStmt   = expr ";" ;
-block      = "{" { stmt } "}" ;
-
-expr       = orExpr ;
-orExpr     = andExpr { "||" andExpr } ;
-andExpr    = eqExpr  { "&&" eqExpr } ;
-eqExpr     = relExpr { ( "==" | "!=" ) relExpr } ;
-relExpr    = addExpr { ( "<" | ">" | "<=" | ">=" ) addExpr } ;
-addExpr    = mulExpr { ( "+" | "-" ) mulExpr } ;
-mulExpr    = unary   { ( "*" | "/" | "%" ) unary } ;
-unary      = ( "-" | "!" ) unary | primary ;
-primary    = NUM [ unitType ] | STR | "true" | "false"
-           | ID [ "(" [ expr { "," expr } ] ")" ] | "(" expr ")" ;
-\end{lstlisting}
-
-A unit suffix after a number extends over \code{/} only when the next token is a unit, so \code{15 mg/kg} is a single
-literal while \code{15 mg / weight} is a division.
-
-\section{Diagnostic Catalogue}
-
-\begin{longtable}{llllp{6.3cm}}
-\toprule
-\textbf{Code} & \textbf{Phase} & \textbf{Severity} & \textbf{Family} & \textbf{Meaning}\\
-\midrule
-\endhead
-LEX001 & lexer & error & lexical & illegal character\\
-LEX002 & lexer & error & lexical & malformed number\\
-LEX003 & lexer & error & lexical & unterminated string literal\\
-SYN001 & parser & error & syntax & expected token not found\\
-SYN002 & parser & error & syntax & unexpected token in expression\\
-SYN003 & parser & error & syntax & unexpected end of file\\
-SEM001 & semantic & error & name & undeclared identifier or function\\
-SEM002 & semantic & error & name & redeclaration\\
-SEM003 & semantic & error & name & use before initialisation\\
-SEM009 & semantic & error & name & assignment to an input or constant\\
-SEM004 & semantic & error & type & type mismatch\\
-SEM006 & semantic & error & type & wrong argument count or type\\
-SEM008 & semantic & error & type & condition is not boolean\\
-SEM005 & semantic & error & unit & unit-of-measure mismatch\\
-DOM001 & semantic & error & range & implausible value or threshold outside declared range\\
-DOM002 & semantic & error & phi & PHI reaches an output sink\\
-DOM003 & semantic & error & missing & optional value used without presence check\\
-SEM007 & semantic & error & logic & missing return on some path\\
-DOM004 & semantic & error & logic & division by constant zero\\
-DOM005 & semantic & error & logic & divisor range includes zero\\
-W001 & semantic & warning & logic & unreachable code\\
-W002 & semantic & warning & valid & unused variable\\
-W003 & semantic & warning & logic & constant condition\\
-\bottomrule
-\end{longtable}
-
-\section{Fault-Injection Operators}
-
-Table~\ref{tab:ops} lists the operators together with the number of times each was attempted while building the
-corpus and how often the resulting fault was kept. \emph{Tried} counts every attempt, including those where the
-operator was not applicable to the sampled program (for example, removing an \code{anonymize} call from a program
-that has none); \emph{Kept} counts attempts that produced a program in which the fault manifested. The percentage is
-therefore a mixture of applicability and manifestation, and it is not a measure of compiler accuracy.
-
-{\small
-\begin{longtable}{llp{5.2cm}rrr}
-\caption{Fault-injection operators and yield during corpus construction.}\label{tab:ops}\\
-\toprule
-\textbf{Family} & \textbf{Operator} & \textbf{Fault injected} & \textbf{Tried} & \textbf{Kept} & \textbf{\%}\\
-\midrule
-\endhead
-lexical & \texttt{lex\_illegal} & insert an illegal character & 332 & 332 & 100\\
- & \texttt{lex\_number} & malform a numeric literal & 311 & 307 & 99\\
- & \texttt{lex\_string} & drop a closing quote & 362 & 361 & 100\\
-\midrule
-syntax & \texttt{syn\_semicolon} & delete a semicolon & 170 & 170 & 100\\
- & \texttt{syn\_paren} & delete a closing parenthesis & 173 & 173 & 100\\
- & \texttt{syn\_close\_brace} & delete a closing brace & 175 & 175 & 100\\
- & \texttt{syn\_open\_brace} & delete an opening brace & 139 & 139 & 100\\
- & \texttt{syn\_operand} & delete a comparison operand & 167 & 167 & 100\\
- & \texttt{syn\_keyword} & misspell a keyword & 176 & 176 & 100\\
-\midrule
-name & \texttt{name\_typo} & misspell a variable use & 208 & 208 & 100\\
- & \texttt{name\_delete\_decl} & delete a declaration & 182 & 182 & 100\\
- & \texttt{name\_redecl} & duplicate a declaration & 156 & 151 & 97\\
- & \texttt{name\_uninit} & remove an initialiser & 185 & 142 & 77\\
- & \texttt{name\_func} & misspell a function call & 173 & 128 & 74\\
- & \texttt{name\_assign\_input} & assign to an input & 189 & 189 & 100\\
-\midrule
-type & \texttt{type\_string\_assign} & assign a string/bool to a number & 194 & 150 & 77\\
- & \texttt{type\_bool\_assign} & assign a number to a bool & 189 & 189 & 100\\
- & \texttt{type\_arity} & change an argument count & 202 & 148 & 73\\
- & \texttt{type\_cond} & use a number as a condition & 170 & 170 & 100\\
- & \texttt{type\_return} & return the wrong type & 210 & 162 & 77\\
- & \texttt{type\_float\_int} & assign a float to an int & 181 & 181 & 100\\
-\midrule
-unit & \texttt{unit\_swap\_literal} & swap the unit of a literal & 225 & 212 & 94\\
- & \texttt{unit\_drop} & drop the unit of a literal & 218 & 208 & 95\\
- & \texttt{unit\_decl} & change a declared input unit & 210 & 206 & 98\\
- & \texttt{unit\_rate} & pass a wrong dose-rate unit & 195 & 86 & 44\\
- & \texttt{unit\_return} & return a wrong unit & 231 & 74 & 32\\
- & \texttt{unit\_add} & add quantities of different units & 215 & 214 & 100\\
-\midrule
-range & \texttt{range\_literal} & implausible threshold literal & 295 & 267 & 91\\
- & \texttt{range\_threshold} & threshold outside declared range & 321 & 273 & 85\\
- & \texttt{range\_decl} & invert a declared range & 323 & 323 & 100\\
- & \texttt{range\_const} & implausible dose constant & 307 & 137 & 45\\
-\midrule
-phi & \texttt{phi\_direct} & print a PHI input & 202 & 202 & 100\\
- & \texttt{phi\_alias} & export an alias of PHI & 219 & 219 & 100\\
- & \texttt{phi\_concat} & concatenate PHI into output & 222 & 222 & 100\\
- & \texttt{phi\_removeanon} & remove an anonymize() call & 219 & 116 & 53\\
- & \texttt{phi\_func} & leak PHI through a function & 241 & 241 & 100\\
-\midrule
-missing & \texttt{miss\_unguard} & remove a presence guard & 442 & 192 & 43\\
- & \texttt{miss\_new\_use} & use an optional value unguarded & 402 & 402 & 100\\
- & \texttt{miss\_make\_optional} & make a required input optional & 410 & 406 & 99\\
-\midrule
-logic & \texttt{logic\_div\_zero} & divide by constant zero & 174 & 174 & 100\\
- & \texttt{logic\_range\_zero} & divisor range includes zero & 193 & 101 & 52\\
- & \texttt{logic\_missing\_return} & delete a return & 166 & 109 & 66\\
- & \texttt{logic\_unreachable} & code after return & 160 & 112 & 70\\
- & \texttt{logic\_inverted} & invert a clinical comparison & 154 & 148 & 96\\
- & \texttt{logic\_wrong\_message} & mismatch alert text and rule & 165 & 163 & 99\\
- & \texttt{logic\_constcond} & constant if-condition & 193 & 193 & 100\\
-\bottomrule
-\end{longtable}
-
-}
-
-\section{Running the Code}
-
-The repository accompanying this report has the following layout.
-
-\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize]
-code/
-  medscript/   lexer, parser, ast_nodes, semantic, ir, driver, equiv
-               generator, mutations, corpus, features
-  ml/          gan.py (conditional GAN), augment.py (SMOTE, jitter, ...)
-  tests/       test_compiler.py (38 unit tests)
-  examples/    triage_ok, phi_leak, inverted_rule, syntax_errors,
-               missing_value, fold_demo (.med)
-  medcheck.py  compiler + learned root-cause estimate
-  run_experiments.py   make_figures.py
-  results/     JSON results of every experiment
-  models/      trained random-forest classifier
-\end{lstlisting}
-
-\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize]
-python -m unittest discover -s tests     # unit tests
-python medcheck.py examples/phi_leak.med # compile + classify a program
-python run_experiments.py                # all experiments (~45 min, 10 cores)
-python make_figures.py                   # figures and LaTeX tables
-\end{lstlisting}
 
 \end{document}

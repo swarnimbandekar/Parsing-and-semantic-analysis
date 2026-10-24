@@ -3,176 +3,90 @@
 % ============================================================
 \subsection{Augmentation under Scarcity: Does the GAN Help? (E3)}
 
-This experiment asks the question that motivated the use of a GAN: if only a handful of real faulty programs are available
-per class, do synthetic feature vectors improve the classifier? Figure~\ref{fig:augment} and
-Tables~\ref{tab:augrf}--\ref{tab:augmlp} give the test macro-F1 of the seven regimes, averaged over ten seeds. The
-\emph{valid} class always has 400 real training programs.
+This is the experiment the GAN was there for: with only a handful of real faulty programs per class, do synthetic
+vectors help? Figure~\ref{fig:augment} and Table~\ref{tab:augrf} give test macro-F1 for the seven regimes over ten seeds.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textwidth]{figs/augment.pdf}
-\caption{Test macro-F1 against the number of real training programs per faulty class (mean $\pm$ standard deviation over ten
-seeds). Left: random forest. Right: MLP.}
+\includegraphics[width=0.9\textwidth]{figs/augment.pdf}
+\caption{Test macro-F1 against real training programs per faulty class (mean $\pm$ s.d. over ten seeds). Left: random
+forest. Right: MLP.}
 \label{fig:augment}
 \end{figure}
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
-\caption{Random forest: test macro-F1 (mean $\pm$ s.d., ten seeds) against the number of real programs per faulty class.
-Bold marks the best mean in each column.}
+\caption{Random forest: test macro-F1 (mean $\pm$ s.d., ten seeds) by real programs per faulty class. Bold is the best
+mean per column.}
 \label{tab:augrf}
 \small
 \resizebox{\textwidth}{!}{\input{tables/augment_rf.tex}}
 \end{table}
 
-\begin{table}[H]
+\paragraph{The short answer is no.} With the random forest the GAN is never the best method and is usually within noise
+of doing nothing: 0.944 against 0.942 at 20 programs per class, and worse at five (0.876 for BCE and 0.853 for WGAN-GP,
+against 0.888). The cheap methods do better. Gaussian jitter is best at every size up to 20 (0.928 against 0.888 at
+five), and SMOTE, oversampling and class weights give smaller gains. By 100 programs everything is within a point. For
+the MLP it is worse: GAN vectors cost 5 to 13 points of macro-F1, most at the smallest sizes (0.713 against 0.844 at
+five), probably because an MLP tries to fit every synthetic point where a forest can ignore some. Paired $t$-tests over
+the seeds show the GAN's difference from no augmentation is either indistinguishable from zero or slightly negative, and
+its difference from jitter and SMOTE is negative at every size.
+
+Almost all of the gain from augmentation comes from one class. Most classes are near their ceiling without help, but
+\emph{logic}, which has to be recognised largely from the six pattern features, goes from F1 0.52 with no augmentation to
+0.79 with jitter at five programs, while the BCE GAN gives 0.47. Augmentation here mostly works as a regulariser for the
+one hard class.
+
+\paragraph{Why the GAN fails.} For one seed at 20 programs per class we inspected the synthetic vectors
+(Table~\ref{tab:fidelity}). \emph{Label validity} is the share that an oracle forest trained on the full pool assigns to
+the requested class. \emph{NN distance} is the mean standardised distance to the nearest real training vector of that
+class; held-out real programs sit at \HeldoutNN{} for comparison.
+
+\begin{table}[!htbp]
 \centering
-\caption{MLP: same protocol as Table~\ref{tab:augrf}.}
-\label{tab:augmlp}
-\small
-\resizebox{\textwidth}{!}{\input{tables/augment_mlp.tex}}
-\end{table}
-
-\paragraph{The short answer is no.} With the random forest, the conditional GAN is never the best method and is usually
-within noise of using no augmentation at all: at 20 real programs per class the BCE version scores 0.944 against 0.942 without
-augmentation, and at 5 programs it is \emph{worse} (0.876 and 0.853 for the BCE and WGAN-GP versions, against 0.888). The
-cheap alternatives help more. Gaussian jitter is the best method at every size up to 20 programs per class (0.928 against
-0.888 at five programs), and SMOTE, random oversampling and class weights also give small gains. By 100 programs per class
-all methods are within one point of each other. For the MLP the picture is worse for the GAN: its synthetic vectors cost
-between 5 and 13 points of macro-F1 relative to no augmentation, with the largest damage at the smallest sizes
-(0.713 against 0.844 at five programs per class), presumably because the MLP, unlike a forest, tries to fit every synthetic point.
-
-Table~\ref{tab:augtests} gives paired comparisons over the ten seeds. The difference between the GAN and \emph{no augmentation}
-is small and, depending on the size, indistinguishable from zero or slightly negative; the difference from jitter and SMOTE is
-negative at every size. The $p$-values are uncorrected for the 30 comparisons shown, so they should be read as a rough guide.
-
-\begin{table}[H]
-\centering
-\caption{Paired difference in macro-F1 (random forest) between each GAN and three alternatives, with the two-sided
-paired $t$-test $p$-value in parentheses. Negative values mean the GAN is worse.}
-\label{tab:augtests}
-\small
-\resizebox{\textwidth}{!}{\input{tables/augment_tests.tex}}
-\end{table}
-
-\paragraph{Where the benefit of augmentation lies.} Figure~\ref{fig:augclass} breaks the result down by class for 20 real
-programs per class. Most classes are already close to their ceiling without help. The exception is \emph{logic}, the family whose
-members are partly invisible to the compiler and have to be recognised from the six pattern features: with five real programs
-its F1 is 0.52 without augmentation, 0.79 with jitter, 0.70 with SMOTE and 0.47 with the BCE GAN; at 20 programs the values are
-0.82, 0.93, 0.86 and 0.85. Augmentation in this setting is mostly a regulariser for the one hard class. The valid class
-gains as a side effect, because fewer logic programs are mistaken for it.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{figs/augment_perclass.pdf}
-\caption{Per-class F1 of the random forest with 20 real programs per faulty class (mean of ten seeds).}
-\label{fig:augclass}
-\end{figure}
-
-\paragraph{Why the GAN fails: fidelity of the synthetic vectors.} For one seed at 20 programs per class we checked
-the synthetic vectors directly (Table~\ref{tab:fidelity}). \emph{Label validity} is the fraction of synthetic vectors that an
-oracle random forest, trained on the full 8{,}000-program pool, assigns to the class the generator was asked for. \emph{NN distance}
-is the mean standardised distance to the nearest real training vector of that class; for reference, held-out \emph{real}
-programs of the same classes lie at a mean distance of \HeldoutNN{} from their nearest training example.
-
-\begin{table}[H]
-\centering
-\caption{Fidelity of synthetic vectors (seed 0, 20 real programs per faulty class). Label validity for the three resampling methods is
-high by construction: their points lie on or next to real training vectors that the oracle has itself seen.}
+\caption{Fidelity of synthetic vectors (seed 0, 20 real programs per faulty class). Resampling methods score high on
+label validity by construction, since their points sit on or next to real vectors.}
 \label{tab:fidelity}
 \small
 \input{tables/fidelity.tex}
 \end{table}
 
-The result is stark. Only 4\% of the GAN's vectors are recognised as belonging to the requested class, which is below the
-10\% expected from a classifier guessing among ten classes; the GAN vectors are also \emph{further} from the training data than genuinely
-new real programs are. In other words, the generator has not learned the class-conditional structure. Figure~\ref{fig:pca} shows the same thing
-in two dimensions: the synthetic points (crosses) spread over the whole cloud of all classes instead of concentrating where the real
-examples of the requested class lie, although a two-dimensional projection of mostly discrete count features is only a rough picture.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{figs/gan_pca.pdf}
-\caption{PCA projection of real (circles) and GAN-generated (crosses) vectors for four classes, with all other real vectors in grey
-(a GAN trained on 100 real programs per class).}
-\label{fig:pca}
-\end{figure}
-
-We examined one likely cause. In the experiment above, mini-batches were drawn uniformly from the training set, which is dominated by the
-400 \emph{valid} programs, so each rare class contributed only a few percent of the batches and the generator may have learned to ignore its
-class input. We repeated the experiment (five seeds, 20 real programs per class) with class-balanced mini-batches, in which a class is chosen
-first and an example second. Table~\ref{tab:gandiag} shows the outcome: label validity rises from roughly 4\% to 11--13\%, which is
-about chance level, and macro-F1 does not improve. The imbalance in the batches therefore explains part of the failure but not the
-rest. The remaining explanation is the one the numbers suggest: with 20 examples per class in a 101-dimensional space of counts,
-a small unregularised GAN has too little to learn from, and a continuous generator blurs features that carry discrete, tightly coupled
-meaning (for example, a diagnostic count of one for exactly one code). This follows the pattern commonly reported for GANs trained on very small tabular data, and it is a
-limit of our setup rather than a general statement about GANs. We did not test architectures designed for tabular data, such as CTGAN
-\cite{xu2019}, or any hyper-parameter search.
-
-\begin{table}[H]
-\centering
-\caption{Effect of class-balanced mini-batches on the GAN (20 real programs per faulty class; mean $\pm$ s.d. over five seeds).
-Label validity of about 0.10 is chance level.}
-\label{tab:gandiag}
-\small
-\input{tables/gan_diag.tex}
-\end{table}
-
-\paragraph{What the GAN is and is not good for here.} One property is worth noting: none of the synthetic vectors is an exact copy of a
-real one (0\% exact copies in Table~\ref{tab:fidelity}), whereas random oversampling copies by definition. If privacy were the
-goal, that would matter; but a synthetic set that does not carry the class signal is no use as training data either. Our
-evidence supports a narrow conclusion: \emph{in this setting, with these model sizes and this amount of data, simple resampling
-is the better way to handle rare error classes.}
+Only 4\% of GAN vectors are recognised as the requested class, below the 10\% you would get by guessing, and they lie
+further from the training data than new real programs do. The generator did not learn the class structure. One likely
+cause was that mini-batches were dominated by the 400 valid programs, so we reran with class-balanced batches (five
+seeds). Label validity rose to 11 to 13\%, about chance, and macro-F1 did not improve. The rest of the explanation is the
+obvious one: 20 examples per class in a 101-dimensional space of counts is too little for a small unregularised GAN, and
+a continuous generator blurs features with discrete, tightly linked meaning (a count of exactly one for exactly one
+code). This is a limit of our setup, not a verdict on GANs; we did not try tabular models such as CTGAN~\cite{xu2019} or
+any tuning. In this setting, simple resampling is the better way to handle rare error classes.
 
 \subsection{GAN-Based Anomaly Detection (E4)}
 
-The second use of a GAN is to detect faulty programs when no faulty examples are available at all. A GAN is trained on the 800 valid
-training programs; the negated discriminator output is the anomaly score. Table~\ref{tab:anomaly} and Figure~\ref{fig:anomaly}
-give the AUROC of each detector separating the 200 valid test programs from the 200 programs of each faulty family.
+The second use of a GAN is to find faulty programs when no faulty examples exist at all. Table~\ref{tab:anomaly} gives
+the AUROC of each detector, trained on valid programs only, for separating valid test programs from each fault family.
 
-\begin{figure}[H]
+\begin{table}[!htbp]
 \centering
-\includegraphics[width=\textwidth]{figs/anomaly.pdf}
-\caption{AUROC of five detectors for valid versus faulty programs, by fault family (dashed line: chance).}
-\label{fig:anomaly}
-\end{figure}
-
-\begin{table}[H]
-\centering
-\caption{AUROC of valid-versus-faulty detection by fault family. All detectors except the compiler flag were trained on
-valid programs only.}
+\caption{AUROC of valid-versus-faulty detection by fault family.}
 \label{tab:anomaly}
 \small
 \resizebox{\textwidth}{!}{\input{tables/anomaly.tex}}
 \end{table}
 
-The numbers need careful reading, because the headline is easy to over-interpret.
-
 \begin{itemize}
-    \item \textbf{The BCE discriminator is an excellent detector, but most of that is easy.} It reaches an AUROC of 0.998 over all faults. However,
-    49 of the 101 features, including \emph{all} 40 diagnostic features, are constant on valid programs: a valid program reports no diagnostic. Any
-    model that looks at those features can therefore tell a program with an error from one without. The compiler's own ``at least one error'' flag
-    achieves 1.000 on every family except \emph{logic}, and it is a far simpler detector.
-    \item \textbf{The informative column is \emph{logic}.} There the compiler flag falls to 0.843 (the soft faults raise no diagnostic), the one-class
-    SVM reaches 0.715, and the BCE discriminator 0.981. To check that this is not a lucky seed, we retrained the discriminator with five seeds
-    (Table~\ref{tab:anomalycheck}): the logic AUROC is 0.97--0.99 each time. It depends, however, on the pattern features: without them it drops to
-    0.83--0.87, and the pattern features alone give only 0.60--0.69. So the discriminator's advantage comes from combining the
-    compiler-derived signals with the pattern signal that valid programs never exhibit, and the pattern features were written with this fault in mind.
-    \item \textbf{Isolation Forest is at chance (0.47).} We first suspected that it ignores the diagnostic features because they have zero range on the
-    training data, so a random split cannot use them. Removing the constant features altogether changes nothing (0.473 to 0.475), which is consistent with that
-    explanation: among the features that do vary, faulty programs look like valid ones.
-    \item \textbf{The WGAN-GP critic fails.} Its AUROC is 0.37, \emph{below} chance: faulty programs receive a higher critic value than valid ones. A critic is
-    trained to separate real from generated samples, not to model density, and outside the data it extrapolates. Negating the score would give about 0.63, but we report the
-    score as defined in advance, not a sign chosen after seeing the result.
+    \item \textbf{The BCE discriminator scores 0.998 overall, but most of that is easy.} 49 of the 101 features,
+    including all 40 diagnostic ones, are constant on valid programs because a valid program has no diagnostics. The
+    compiler's own ``at least one error'' flag gets 1.000 on every family except logic.
+    \item \textbf{The column that matters is logic.} There the compiler flag drops to 0.843, the one-class SVM gets 0.715,
+    and the BCE discriminator 0.981. Over five retraining seeds it stays between 0.97 and 0.99. Without the pattern
+    features it falls to 0.83 to 0.87, and the pattern features alone give 0.60 to 0.69, so the discriminator wins by
+    combining the two signals.
+    \item \textbf{Isolation Forest sits at chance (0.47)}, even after removing the constant features: among the features
+    that do vary, faulty programs look like valid ones.
+    \item \textbf{The WGAN-GP critic fails at 0.37}, below chance. A critic learns to separate real from generated
+    samples, not to model density, and it extrapolates badly off the data. Flipping the sign would give about 0.63, but we
+    report the score as defined before seeing the result.
 \end{itemize}
 
-\begin{table}[H]
-\centering
-\caption{Stability and ablation of the BCE discriminator as anomaly detector (five seeds, mean $\pm$ s.d.).}
-\label{tab:anomalycheck}
-\small
-\input{tables/anomaly_check.tex}
-\end{table}
-
-The practical reading is modest. A GAN discriminator trained only on valid programs is a usable \emph{unsupervised} detector of the one family that the compiler
-misses, but it is not better than the compiler on the families the compiler handles, and its result is only as good as the features it sees.
+So a discriminator trained only on valid programs is a usable unsupervised detector for the one family the compiler
+misses. It is not better than the compiler on the families the compiler handles.

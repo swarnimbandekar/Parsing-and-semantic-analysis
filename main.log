@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.10.17)  17 OCT 2026 23:19
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.10.17)  24 OCT 2026 11:47
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -992,11 +992,7 @@ File: ot1ptm.fd 2001/06/04 font definitions for OT1/ptm.
 tex.def
 File: l3backend-pdftex.def 2025-10-09 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count372
-) (main.aux
-
-LaTeX Warning: Label `tab:ops' multiply defined.
-
-)
+) (main.aux)
 \openout1 = `main.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 150.
@@ -1091,7 +1087,7 @@ Package hyperref Info: Link coloring ON on input line 150.
 \@outlinefile=\write4
 \openout4 = `main.out'.
 
-<vit-ap-university-logo.png, id=234, 602.25pt x 602.25pt>
+<vit-ap-university-logo.png, id=102, 602.25pt x 602.25pt>
 File: vit-ap-university-logo.png Graphic file (type png)
 <use vit-ap-university-logo.png>
 Package pdftex.def Info: vit-ap-university-logo.png  used on input line 160.
@@ -1120,229 +1116,88 @@ been already used, duplicate ignored
 l.268 \newpage
                [1]
 LaTeX Font Info:    Trying to load font information for OT1+pcr on input line 2
-82.
+80.
 
 (C:\Users\swarn\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\ot1pcr.fd
 File: ot1pcr.fd 2001/06/04 font definitions for OT1/pcr.
 )
-[2]
-Overfull \hbox (2.90518pt too wide) in paragraph at lines 319--323
-[]\OT1/ptm/m/n/12 The course con-text also shaped the de-sign. The as-sign-ment
- asks for a com-piler component---
- []
-
-
-Overfull \hbox (24.7714pt too wide) in paragraph at lines 319--323
-\OT1/ptm/m/n/12 here pars-ing and se-man-tic analysis---and a machine-learning 
-component---here er-ror classification---
- []
-
-[3]
 LaTeX Font Info:    Trying to load font information for TS1+ptm on input line 3
-63.
- (C:\Users\swarn\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\ts1ptm.fd
+12.
+
+(C:\Users\swarn\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\ts1ptm.fd
 File: ts1ptm.fd 2001/06/04 font definitions for TS1/ptm.
 )
-[4] [5]
-Underfull \hbox (badness 10000) in paragraph at lines 480--480
-[]|\OT1/ptm/m/n/10.95 Classical front
+[2] [3] [4]
+Overfull \hbox (3.5329pt too wide) in paragraph at lines 439--441
+[]\OT1/ptm/b/n/12 Inputs carry meta-data. \OT1/pcr/m/n/12 input weight: kg rang
+e(2, 300); \OT1/ptm/m/n/12 de-clares a read-
  []
 
-
-Underfull \hbox (badness 10000) in paragraph at lines 480--480
-[]|\OT1/ptm/m/n/10.95 General lan-
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 480--480
-[]|\OT1/ptm/m/n/10.95 Blind to units,
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 480--480
-[]|\OT1/ptm/m/n/10.95 No pri-vacy or
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 480--480
-[]|\OT1/ptm/m/n/10.95 Needs large la-
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 480--480
-[]|\OT1/ptm/m/n/10.95 Not gen-er-a-tive;
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 480--480
-\OT1/ptm/m/n/10.95 stays in-side the
- []
-
-
-Underfull \hbox (badness 4634) in paragraph at lines 480--480
-[]|\OT1/ptm/m/n/10.95 Images, not pro-
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 480--480
-[]|\OT1/ptm/m/n/10.95 Medical-data
- []
-
-
-Underfull \hbox (badness 3219) in paragraph at lines 480--480
-[]|\OT1/ptm/m/n/10.95 Domain-aware front end $\OT1/cmr/m/n/10.95 +$ \OT1/ptm/m/
-n/10.95 learned
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 480--480
-[]|\OT1/ptm/m/n/10.95 Synthetic cor-pus;
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 480--480
-\OT1/ptm/m/n/10.95 main-stream lan-
- []
-
-[6] [7] [8] [9]
 Package hyperref Info: bookmark level for unknown lstlisting defaults to 0 on i
-nput line 619.
- [10]
-Underfull \hbox (badness 10000) in paragraph at lines 673--673
-[]|\OT1/pcr/m/n/10.95 + - * / % < > <= >= == != && ||
+nput line 450.
+[5]
+Overfull \hbox (3.86125pt too wide) in paragraph at lines 476--482
+\OT1/ptm/m/n/12 lected as the longest run of let-ters, dig-its and dots and onl
+y then checked against $\OT1/cmr/m/n/12 [0[]9][](\OML/cmm/m/it/12 :\OT1/cmr/m/n
+/12 [0[]9][])?$\OT1/ptm/m/n/12 ,
  []
 
-LaTeX Font Info:    Trying to load font information for OMS+pcr on input line 6
-74.
+LaTeX Font Info:    Trying to load font information for OMS+pcr on input line 4
+86.
 (C:\Users\swarn\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\omspcr.fd
 File: omspcr.fd 
 )
-LaTeX Font Info:    Font shape `OMS/pcr/m/n' in size <10.95> not available
-(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 674.
-
-Overfull \hbox (15.66107pt too wide) in paragraph at lines 680--685
-[]\OT1/ptm/m/n/12 Three lex-i-cal di-ag-nos-tics ex-ist: an il-le-gal char-ac-t
-er (\OT1/pcr/m/n/12 LEX001\OT1/ptm/m/n/12 ), a mal-formed num-ber (\OT1/pcr/m/n
-/12 LEX002\OT1/ptm/m/n/12 )
- []
-
-[11]
 LaTeX Font Info:    Font shape `OMS/pcr/m/n' in size <12> not available
-(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 716.
- [12] [13] [14]
-Underfull \hbox (badness 4403) in paragraph at lines 824--825
-[]|\OT1/pcr/m/n/10.95 LEX001\OT1/ptm/m/n/10.95 --\OT1/pcr/m/n/10.95 LEX003\OT1/
-ptm/m/n/10.95 : il-le-gal char-ac-ter, mal-
- []
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 486.
 
-[15] [16] [17] [18]
-Package hyperref Info: bookmark level for unknown algorithm defaults to 0 on in
-put line 947.
- [19] [20] [21] [22]
-Overfull \hbox (16.41875pt too wide) in paragraph at lines 1113--1116
-\OT1/ptm/m/n/12 (to-ken+AST, di-ag-nos-tics, di-ag-nos-tics+patterns, all fea-t
-ures) with $\OML/cmm/m/it/12 n \OMS/cmsy/m/n/12 2 f\OT1/cmr/m/n/12 5\OML/cmm/m/
-it/12 ; \OT1/cmr/m/n/12 10\OML/cmm/m/it/12 ; \OT1/cmr/m/n/12 25\OML/cmm/m/it/12
- ; \OT1/cmr/m/n/12 50\OML/cmm/m/it/12 ; \OT1/cmr/m/n/12 100\OML/cmm/m/it/12 ; \
-OT1/cmr/m/n/12 200\OML/cmm/m/it/12 ; \OT1/cmr/m/n/12 800\OMS/cmsy/m/n/12 g$
- []
-
-[23] [24] [25]
-<figs/confusion.pdf, id=570, 481.0776pt x 245.04245pt>
+[6] [7] [8] [9] [10]
+<figs/confusion.pdf, id=266, 481.0776pt x 245.04245pt>
 File: figs/confusion.pdf Graphic file (type pdf)
 <use figs/confusion.pdf>
-Package pdftex.def Info: figs/confusion.pdf  used on input line 1207.
-(pdftex.def)             Requested size: 452.9679pt x 230.72878pt.
- [26] [27 <./figs/confusion.pdf>]
-<figs/learning.pdf, id=639, 313.14503pt x 223.81213pt>
-File: figs/learning.pdf Graphic file (type pdf)
-<use figs/learning.pdf>
-Package pdftex.def Info: figs/learning.pdf  used on input line 1297.
-(pdftex.def)             Requested size: 280.83788pt x 200.73238pt.
- [28] (tables/learning.tex)
-[29 <./figs/learning.pdf>]
-<figs/augment.pdf, id=708, 529.49106pt x 233.44386pt>
+Package pdftex.def Info: figs/confusion.pdf  used on input line 718.
+(pdftex.def)             Requested size: 362.37569pt x 184.58527pt.
+ [11] [12 <./figs/confusion.pdf>]
+<figs/augment.pdf, id=336, 529.49106pt x 233.44386pt>
 File: figs/augment.pdf Graphic file (type pdf)
 <use figs/augment.pdf>
-Package pdftex.def Info: figs/augment.pdf  used on input line 1342.
-(pdftex.def)             Requested size: 452.9679pt x 199.71056pt.
- (tables/augment_rf.tex) [30 <./figs/augment.pdf>]
-(tables/augment_mlp.tex) (tables/augment_tests.tex) [31]
-<figs/augment_perclass.pdf, id=795, 452.15198pt x 213.86008pt>
-File: figs/augment_perclass.pdf Graphic file (type pdf)
-<use figs/augment_perclass.pdf>
-Package pdftex.def Info: figs/augment_perclass.pdf  used on input line 1396.
-(pdftex.def)             Requested size: 452.9679pt x 214.25764pt.
- [32 <./figs/augment_perclass.pdf>]
-<figs/gan_pca.pdf, id=856, 529.7391pt x 139.31862pt>
-File: figs/gan_pca.pdf Graphic file (type pdf)
-<use figs/gan_pca.pdf>
-Package pdftex.def Info: figs/gan_pca.pdf  used on input line 1434.
-(pdftex.def)             Requested size: 452.9679pt x 119.13138pt.
- [33 <./figs/gan_pca.pdf>]
-<figs/anomaly.pdf, id=906, 452.15198pt x 216.10793pt>
-File: figs/anomaly.pdf Graphic file (type pdf)
-<use figs/anomaly.pdf>
-Package pdftex.def Info: figs/anomaly.pdf  used on input line 1483.
-(pdftex.def)             Requested size: 452.9679pt x 216.50969pt.
- [34] (tables/anomaly.tex) [35 <./figs/anomaly.pdf>]
-<figs/scaling.pdf, id=984, 319.43927pt x 223.81213pt>
-File: figs/scaling.pdf Graphic file (type pdf)
-<use figs/scaling.pdf>
-Package pdftex.def Info: figs/scaling.pdf  used on input line 1553.
-(pdftex.def)             Requested size: 280.83788pt x 196.76404pt.
- [36] (tables/scaling.tex) [37 <./figs/scaling.pdf>] [38] [39]
-[40]
-Overfull \hbox (3.25243pt too wide) in paragraph at lines 1698--1704
-[]\OT1/ptm/m/n/12 The com-piler for Med-Script im-ple-ments the usual phases---
-scanner, recursive-descent parser
- []
-
-[41] [42] [43] [44] [45] [46] [47]
-ignored error: Infinite glue shrinkage found in box being split [48] [49]
-(main.aux)
+Package pdftex.def Info: figs/augment.pdf  used on input line 785.
+(pdftex.def)             Requested size: 407.66833pt x 179.73807pt.
+ (tables/augment_rf.tex)
+[13 <./figs/augment.pdf>] [14] (tables/anomaly.tex) [15] [16] [17] [18]
+[19] (main.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2025-12-24>
  ***********
-
-
-LaTeX Warning: There were multiply-defined labels.
-
 Package rerunfilecheck Info: File `main.out' has not changed.
-(rerunfilecheck)             Checksum: B379B0746A99FB308D4818ABC41896BD;10480.
+(rerunfilecheck)             Checksum: 31874CCA9220AB2A8F1E50414581E1C2;4761.
  ) 
 Here is how much of TeX's memory you used:
- 38144 strings out of 467871
- 854237 string characters out of 5418375
- 1917301 words of memory out of 5000000
- 66054 multiletter control sequences out of 15000+600000
- 664632 words of font info for 116 fonts, out of 8000000 for 9000
+ 37450 strings out of 467871
+ 844482 string characters out of 5418375
+ 1644299 words of memory out of 5000000
+ 65610 multiletter control sequences out of 15000+600000
+ 659357 words of font info for 107 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 84i,14n,94p,722b,2130s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 84i,12n,94p,722b,2134s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/
-cmbx12.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/public/ams
-fonts/cm/cmex10.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/p
-ublic/amsfonts/cm/cmmi10.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX/font
-s/type1/public/amsfonts/cm/cmmi12.pfb><C:/Users/swarn/AppData/Local/Programs/Mi
-KTeX/fonts/type1/public/amsfonts/cm/cmmi8.pfb><C:/Users/swarn/AppData/Local/Pro
-grams/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/swarn/AppData/L
-ocal/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr12.pfb><C:/Users/swarn/A
-ppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr8.pfb><C:/Users/
-swarn/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><
-C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cms
-y8.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfont
-s/cm/cmti12.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/publi
-c/amsfonts/symbols/msbm10.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX/fon
-ts/type1/urw/courier/ucrb8a.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX/f
-onts/type1/urw/courier/ucrr8a.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX
-/fonts/type1/urw/times/utmb8a.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX
-/fonts/type1/urw/times/utmbi8a.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTe
-X/fonts/type1/urw/times/utmr8a.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTe
-X/fonts/type1/urw/times/utmri8a.pfb>
-Output written on main.pdf (50 pages, 669905 bytes).
+cmex10.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/public/ams
+fonts/cm/cmmi12.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/p
+ublic/amsfonts/cm/cmmi8.pfb><C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts
+/type1/public/amsfonts/cm/cmr12.pfb><C:/Users/swarn/AppData/Local/Programs/MiKT
+eX/fonts/type1/public/amsfonts/cm/cmr8.pfb><C:/Users/swarn/AppData/Local/Progra
+ms/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/swarn/AppData/Loc
+al/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti12.pfb><C:/Users/swarn/Ap
+pData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm10.pfb><C:/
+Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/urw/courier/ucrb8a.pfb><C
+:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/urw/courier/ucrr8a.pfb>
+<C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmb8a.pfb>
+<C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmr8a.pfb>
+<C:/Users/swarn/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmri8a.pfb
+>
+Output written on main.pdf (20 pages, 337644 bytes).
 PDF statistics:
- 1337 PDF objects out of 1440 (max. 8388607)
- 347 named destinations out of 1000 (max. 500000)
- 515 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 533 PDF objects out of 1000 (max. 8388607)
+ 117 named destinations out of 1000 (max. 500000)
+ 226 words of extra memory for PDF output out of 10000 (max. 10000000)
 
